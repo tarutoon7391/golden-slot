@@ -1,4 +1,4 @@
-import type { ActiveFlags, BonusRole, GameMode, KomaNo, ReelIndex, Setting, SmallRole, StopPositions } from '../shared/types.ts';
+import type { ActiveFlags, BonusRole, GameMode, KomaNo, ReelIndex, Setting, SmallRole, StopPositions, StopRecord } from '../shared/types.ts';
 import { createRng } from '../shared/rng.ts';
 import { MACHINE } from '../config/machine.ts';
 import { BONUS_ROLES, BONUS_SPECS, isBigBonus, patternsOf } from '../config/roles.ts';
@@ -82,7 +82,7 @@ const NO_AIM_NEEDED = new Set(['BELL', 'REPLAY']);
  * 成立（hit）> まだ可能性あり（open）> 不可。成立なら払い出しが多い入賞形（角チェリー）を優先。
  * 試し始めの位置はランダムにして、同点のときの偏りをなくす。
  */
-export function aimedPush(reel: ReelIndex, stopped: StopPositions, flags: ActiveFlags, mode: GameMode, start: number): KomaNo {
+export function aimedPush(reel: ReelIndex, stopped: StopPositions, history: readonly StopRecord[], flags: ActiveFlags, mode: GameMode, start: number): KomaNo {
   const target = targetRoleOf(flags);
   if (!target || NO_AIM_NEEDED.has(target)) return start + 1;
   const patterns = patternsOf(target);
@@ -90,7 +90,7 @@ export function aimedPush(reel: ReelIndex, stopped: StopPositions, flags: Active
   let bestScore = -1;
   for (let i = 0; i < KOMA_COUNT; i++) {
     const push = ((start + i) % KOMA_COUNT) + 1;
-    const r = decideStop({ reel, pushKoma: push, stopped, flags, mode });
+    const r = decideStop({ reel, pushKoma: push, stopped, flags, mode, history });
     const matches = matchAll(buildPartialWindow(withStop(stopped, reel, r.stopKoma)), patterns);
     const hits = matches.filter((m) => m.state === 'hit');
     const score = hits.length > 0 ? 2 + Math.max(...hits.map((m) => payoutOf(m.pattern, mode))) / 100 : matches.some((m) => m.state === 'open') ? 1 : 0;
@@ -139,10 +139,10 @@ export function createControlSim(opts: ControlSimOptions): ControlSim {
   const bet = MACHINE.betPerGame;
 
   /** 1 リールぶんの押下位置を決める */
-  const pushFor = (reel: ReelIndex, stopped: StopPositions, flags: ActiveFlags): KomaNo => {
+  const pushFor = (reel: ReelIndex, stopped: StopPositions, history: readonly StopRecord[], flags: ActiveFlags): KomaNo => {
     if (opts.pushMode === 'fixed') return fixed[reel];
     const start = pushRng.nextInt(KOMA_COUNT);
-    return opts.pushMode === 'aim' ? aimedPush(reel, stopped, flags, mode, start) : start + 1;
+    return opts.pushMode === 'aim' ? aimedPush(reel, stopped, history, flags, mode, start) : start + 1;
   };
 
   const playOne = () => {
@@ -158,8 +158,10 @@ export function createControlSim(opts: ControlSimOptions): ControlSim {
     carried = carriedBonus;
     // 2. リール制御（1 リールずつ。押下位置は止まっているリールを見て決める）→ 3. 払い出し判定
     let stopped: StopPositions = [null, null, null];
+    const history: StopRecord[] = [];
     for (const reel of order) {
-      const r = decideStop({ reel, pushKoma: pushFor(reel, stopped, flags), stopped, flags, mode });
+      const r = decideStop({ reel, pushKoma: pushFor(reel, stopped, history, flags), stopped, flags, mode, history });
+      history.push({ reel, pushKoma: r.pushKoma, stopKoma: r.stopKoma, slip: r.slip });
       stopped = withStop(stopped, reel, r.stopKoma);
     }
     const payout = judgeWindow(buildWindow(stopped as readonly [KomaNo, KomaNo, KomaNo]), mode);

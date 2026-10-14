@@ -6,9 +6,10 @@ import { ROLES } from '../config/roles.ts';
 import { SYMBOLS } from '../config/symbols.ts';
 import { REACHME } from '../config/reachme.ts';
 import { ALL_SETTINGS } from '../lottery/setting.ts';
-import { BONUS_ROLES, ROW_KEYS, ROW_LABELS, SMALL_ROLES, rowToResult } from '../lottery/lottery.ts';
-import { STOP_RULES } from '../reel/rules.ts';
-import { findReachme, formatAsReachme, matchReachme } from '../reel/reachme.ts';
+import { BONUS_ROLES, ROW_KEYS, ROW_LABELS, SMALL_ROLES, rowToResult, toActiveFlags } from '../lottery/lottery.ts';
+import { STOP_RULE_SETS, ruleSetFor } from '../reel/rules.ts';
+import { historyFromStops } from '../reel/control.ts';
+import { conditionsOf, findReachme, formatAsReachme, masksOf, matchReachme } from '../reel/reachme.ts';
 import { buildPartialWindow } from '../reel/window.ts';
 import type { GameApi } from '../store/useGame.ts';
 import { oneIn, payoutRate, simulate, type SimResult } from '../sim/simulate.ts';
@@ -82,6 +83,7 @@ function StateSection({ state }: { state: GameState }) {
     ['今ゲームの抽選', l ? `小役: ${roleLabel(l.small)} ・ ボーナス: ${roleLabel(l.bonus)}${l.roll !== undefined ? ` ・ 乱数 ${l.roll}` : ''}${l.forced ? ' ・ 強制' : ''}` : '-'],
     ['持ち越しボーナス', roleLabel(state.carriedBonus)],
     ['引き込み対象', l ? `小役: ${roleLabel(l.small)} ・ ボーナス: ${roleLabel(state.carriedBonus ?? l.bonus)}（小役優先）` : '-'],
+    ['制御セット', l ? `${ruleSetFor(toActiveFlags(l, state.carriedBonus)).label}（STOP_RULE_SETS.${ruleSetFor(toActiveFlags(l, state.carriedBonus)).id}）` : '-'],
     ['演出計画', e ? `予告音: ${e.leverSound}${e.sourceKey ? `（${e.sourceKey}）` : ''} ・ 消灯: ${e.blackout ? 'on' : 'off'} ・ フラッシュ: ${e.flash} ・ ランプ: ${e.lamp} ・ BGM: ${e.bgm}` : '-'],
     ['払い出し判定', p ? (p.hits.length === 0 ? 'ハズレ' : p.hits.map((h) => `${h.patternId}${h.line ? `@${LINE_LABELS[h.line]}` : ''} ${h.payout}枚`).join(' / ') + `（合計 ${p.totalPayout}）`) : '-'],
   ];
@@ -226,6 +228,7 @@ function SymbolCell({ symbols }: { symbols: readonly [SymbolId, SymbolId, Symbol
 }
 
 function CandidateTable({ result, showReason }: { result: StopResult; showReason: boolean }) {
+  const rules = STOP_RULE_SETS[result.ruleSet].rules;
   return (
     <table className="dbg-table">
       <thead>
@@ -233,7 +236,7 @@ function CandidateTable({ result, showReason }: { result: StopResult; showReason
           <th>スベリ</th>
           <th>コマ</th>
           <th>上中下</th>
-          {STOP_RULES.map((r) => (
+          {rules.map((r) => (
             <th key={r.id} title={r.id}>
               {r.label}
             </th>
@@ -243,14 +246,14 @@ function CandidateTable({ result, showReason }: { result: StopResult; showReason
       </thead>
       <tbody>
         {result.candidates.map((c) => (
-          <CandidateRows key={c.slip} c={c} showReason={showReason} />
+          <CandidateRows key={c.slip} c={c} rules={rules} showReason={showReason} />
         ))}
       </tbody>
     </table>
   );
 }
 
-function CandidateRows({ c, showReason }: { c: StopResult['candidates'][number]; showReason: boolean }) {
+function CandidateRows({ c, rules, showReason }: { c: StopResult['candidates'][number]; rules: readonly { id: string }[]; showReason: boolean }) {
   const byRule = new Map(c.evaluations.map((ev) => [ev.ruleId, ev]));
   return (
     <>
@@ -260,7 +263,7 @@ function CandidateRows({ c, showReason }: { c: StopResult['candidates'][number];
         <td>
           <SymbolCell symbols={c.symbols} />
         </td>
-        {STOP_RULES.map((r) => {
+        {rules.map((r) => {
           const ev = byRule.get(r.id);
           return (
             <td key={r.id} className={ev ? `verdict-${ev.verdict}` : ''} title={ev?.reason ?? '未評価（前のルールで除外）'}>
@@ -272,7 +275,7 @@ function CandidateRows({ c, showReason }: { c: StopResult['candidates'][number];
       </tr>
       {showReason && (
         <tr className="reason-row">
-          <td colSpan={4 + STOP_RULES.length}>
+          <td colSpan={4 + rules.length}>
             {c.evaluations.map((ev) => (
               <div key={ev.ruleId}>
                 <b>{ev.ruleId}</b> {VERDICT_MARK[ev.verdict]} {ev.reason}
@@ -299,12 +302,12 @@ function CandidatesSection({ state }: { state: GameState }) {
       {stops.map((r) => (
         <div key={r.reel} className="dbg-reel-block">
           <h3>
-            {REEL_NAME[r.reel]}リール: 押下 {r.pushKoma} → 停止 {r.stopKoma}（スベリ {r.slip}）
+            {REEL_NAME[r.reel]}リール: 押下 {r.pushKoma} → 停止 {r.stopKoma}（スベリ {r.slip}）・セット {STOP_RULE_SETS[r.ruleSet].label}
           </h3>
           <CandidateTable result={r} showReason={showReason} />
         </div>
       ))}
-      <p className="dbg-note">○ accept ／ × reject ／ − neutral。ルールは上から順に適用（src/reel/rules.ts の STOP_RULES）。</p>
+      <p className="dbg-note">○ accept ／ × reject ／ − neutral。ルールは上から順に適用（src/reel/rules.ts の STOP_RULE_SETS。成立中のボーナスで切り替わる）。</p>
     </details>
   );
 }
@@ -332,7 +335,11 @@ function CopyButton({ text }: { text: string }) {
 
 function ReachmeSection({ state }: { state: GameState }) {
   const window = buildPartialWindow(state.positions);
-  const hits = findReachme(window);
+  const history = historyFromStops(state.stops, state.stopAt);
+  const ctx = { order: history.map((h) => h.reel), masks: masksOf(conditionsOf(REACHME), history) };
+  const hits = findReachme(window, REACHME, ctx);
+  // 出目は一致するが押し順・押下位置・スベリの条件が合わないもの
+  const shapeOnly = findReachme(window, REACHME).filter((p) => !hits.includes(p));
   const open = REACHME.filter((p) => matchReachme(window, p) === 'open');
   const text = formatAsReachme(window);
   const stoppedCount = state.positions.filter((p) => p !== null).length;
@@ -344,6 +351,7 @@ function ReachmeSection({ state }: { state: GameState }) {
       ) : (
         <ul className="dbg-list">
           <li>一致: {hits.length === 0 ? 'なし' : hits.map((p) => `${p.label}（${p.id}）`).join(' / ')}</li>
+          {shapeOnly.length > 0 && <li>出目は一致・条件が不一致: {shapeOnly.map((p) => p.id).join(' / ')}</li>}
           {stoppedCount < 3 && <li>まだ可能性あり: {open.length === 0 ? 'なし' : open.map((p) => p.id).join(' / ')}</li>}
         </ul>
       )}

@@ -5,7 +5,7 @@ import { MACHINE } from '../config/machine.ts';
 import { tableFor } from '../config/probability.ts';
 import { applyCarry, drawLottery, toActiveFlags } from '../lottery/lottery.ts';
 import { pickSetting } from '../lottery/setting.ts';
-import { decideStop } from '../reel/control.ts';
+import { decideStop, historyFromStops } from '../reel/control.ts';
 import { planLeverEffect, situationOf } from '../effects/plan.ts';
 import { playBetSound, playBonusConfirm, playLeverSound, playPayout, playStopSound, startBgm, stopBgm, unlockAudio } from '../effects/audio.ts';
 import { canBet, canLever, canStop, createInitialState, gameReducer, normalizeRestored, payoutDelayMs, pushKomaAt } from './gameReducer.ts';
@@ -134,7 +134,7 @@ export function useGame(overridesRef?: RefObject<GameOverrides | undefined>): Ga
       // 押下コマ番号は時刻から（デバッグの指定があればそれを使う）
       const pushKoma = overridesRef?.current?.pushKoma?.(s, reel) ?? pushKomaAt(s, reel, t);
       const flags = toActiveFlags(s.lottery, s.carriedBonus);
-      const result = decideStop({ reel, pushKoma, stopped: s.positions, flags, mode: s.mode });
+      const result = decideStop({ reel, pushKoma, stopped: s.positions, flags, mode: s.mode, history: historyFromStops(s.stops, s.stopAt) });
       playStopSound();
       dispatch({ type: 'STOP', result, now: t });
     },

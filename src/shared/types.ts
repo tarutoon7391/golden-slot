@@ -182,6 +182,19 @@ export interface PayoutResult {
 // リール制御
 // ---------------------------------------------------------------------------
 
+/** 停止制御のルールセット（通常時＝default、ボーナス成立後は種別ごと） */
+export type StopRuleSetId = 'default' | BonusRole;
+
+/** 止まったリール 1 本の記録（押下位置・停止位置・スベリ） */
+export interface StopRecord {
+  reel: ReelIndex;
+  /** 押下時に中段にあったコマ番号 */
+  pushKoma: KomaNo;
+  /** 停止したコマ番号（中段） */
+  stopKoma: KomaNo;
+  slip: number;
+}
+
 /** 停止要求（1 リールぶん） */
 export interface StopRequest {
   reel: ReelIndex;
@@ -193,6 +206,12 @@ export interface StopRequest {
   flags: ActiveFlags;
   /** ゲームの状態（通常／ボーナス中で制御を変えたいとき用） */
   mode: GameMode;
+  /**
+   * すでに止まったリールの記録（止めた順）。
+   * リーチ目の条件（押し順・押下位置・スベリ）の判定に使う。
+   * 省略すると stopped から「左→中→右の順で止まった・スベリ条件は不成立」として扱う。
+   */
+  history?: readonly StopRecord[];
 }
 
 /** ルール 1 本の判定結果 */
@@ -221,11 +240,9 @@ export interface CandidateEvaluation {
 }
 
 /** 停止結果 */
-export interface StopResult {
-  reel: ReelIndex;
-  pushKoma: KomaNo;
-  stopKoma: KomaNo;
-  slip: number;
+export interface StopResult extends StopRecord {
+  /** 使ったルールセット（デバッグ表示用） */
+  ruleSet: StopRuleSetId;
   /** 全候補の評価（デバッグ表示用） */
   candidates: CandidateEvaluation[];
 }
@@ -392,6 +409,25 @@ export type ReachmeUsage =
   | 'preferOnly' // 内部中に優先するだけ（非成立時にも出うる＝ガセ目にしたいとき）
   | 'excludeOnly'; // 非成立時に除外するだけ
 
+/** リーチ目の追加条件：1 リールぶんの押下位置・スベリ */
+export interface ReachmeReelCondition {
+  /** 押下時に中段にあったコマ番号がこの中に含まれるとき */
+  push?: readonly KomaNo[];
+  /** スベリコマ数がこの中に含まれるとき（0〜4） */
+  slip?: readonly number[];
+}
+
+/**
+ * リーチ目の追加条件（省略時は出目だけで判定）
+ * 条件が付いたリーチ目は、押し順・押下位置・スベリまで一致したときだけリーチ目として扱う。
+ */
+export interface ReachmeCondition {
+  /** 押し順の先頭一致。[0, 2] なら 左→右 の挟み打ち、[1] なら中押し（第1停止が中） */
+  order?: readonly ReelIndex[];
+  /** リールごとの押下位置・スベリ条件（キーはリール番号 0=左, 1=中, 2=右） */
+  reels?: Partial<Record<ReelIndex, ReachmeReelCondition>>;
+}
+
 /** リーチ目 1 件 */
 export interface ReachmePattern {
   id: string;
@@ -404,8 +440,15 @@ export interface ReachmePattern {
   reels: readonly [ReelPattern | null, ReelPattern | null, ReelPattern | null];
   /** 省略時は 'both' */
   usage?: ReachmeUsage;
-  /** 対象ボーナス。省略時は BIG・REG 両方 */
+  /** 対象ボーナス。省略時は全ボーナス（BIG7 / BIGG / REG） */
   bonus?: readonly BonusRole[];
+  /** 押し順・押下位置・スベリの条件。省略時は出目だけで判定 */
+  when?: ReachmeCondition;
+  /**
+   * true なら当選小役が揃っていてもリーチ目として扱う（例: ボーナス図柄の横一直線）。
+   * 省略（false）なら「○○orリーチ目」＝当選小役が揃った形は小役の出目として許す。
+   */
+  strict?: boolean;
 }
 
 // ---------------------------------------------------------------------------

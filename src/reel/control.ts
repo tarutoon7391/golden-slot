@@ -1,22 +1,25 @@
-import type { ActiveFlags, CandidateEvaluation, GameMode, KomaNo, ReachmePattern, ReelIndex, StopPositions, StopRequest, StopResult } from '../shared/types.ts';
+import type { ActiveFlags, CandidateEvaluation, GameMode, KomaNo, ReachmePattern, ReelIndex, StopPositions, StopRecord, StopRequest, StopResult } from '../shared/types.ts';
 import { MACHINE } from '../config/machine.ts';
 import { REACHME } from '../config/reachme.ts';
 import { slipKoma, windowAt } from '../config/reels.ts';
 import type { Role } from '../payout/judge.ts';
-import { STOP_RULES, type Candidate, type StopContext, type StopRule } from './rules.ts';
+import { lookaheadFor } from './lookahead.ts';
+import { NO_MASKS, conditionsOf, masksOf, withMask, type ConditionMasks } from './reachme.ts';
+import { ruleSetFor, type Candidate, type StopContext, type StopRule } from './rules.ts';
 import { buildPartialWindow, withStop } from './window.ts';
 
 /**
  * リール制御の本体
- * 1. 押下位置から 0〜maxSlip コマの候補を列挙
- * 2. STOP_RULES を上から順に適用して候補をふるい落とす
- * 3. 最後に残った候補で停止
+ * 1. flags.bonus でルールセット（STOP_RULE_SETS）を選ぶ
+ * 2. 押下位置から 0〜maxSlip コマの候補を列挙
+ * 3. セットのルールを上から順に適用して候補をふるい落とす
+ * 4. 最後に残った候補で停止
  *
  * ルールの中身・順序は rules.ts にある。ここは適用の仕組みだけ。
  */
 
 export interface StopOptions {
-  /** 差し替え用（テスト・デバッグ） */
+  /** 差し替え用（テスト・デバッグ）。rules を渡すとルールセットの選択より優先する */
   rules?: readonly StopRule[];
   reachme?: readonly ReachmePattern[];
 }
@@ -32,28 +35,71 @@ export function allowedRolesOf(flags: ActiveFlags): Role[] {
   return t ? [t] : [];
 }
 
+/**
+ * 既停止リールの記録。request.history があればそれ、無ければ stopped から
+ * 「左→中→右の順・スベリ条件は不成立」として補う（押下位置は停止位置と同じ扱い）
+ */
+export function historyOf(request: StopRequest): readonly StopRecord[] {
+  if (request.history) return request.history;
+  const list: StopRecord[] = [];
+  for (const reel of [0, 1, 2] as const) {
+    const koma = request.stopped[reel];
+    if (koma !== null) list.push({ reel, pushKoma: koma, stopKoma: koma, slip: 0 });
+  }
+  return list;
+}
+
+/** 停止結果（リール番号順）と停止時刻から、止めた順の記録を作る（useGame 用） */
+export function historyFromStops(stops: readonly (StopRecord | null)[], stopAt: readonly (number | null)[]): StopRecord[] {
+  return stops
+    .filter((s): s is StopRecord => s !== null)
+    .sort((a, b) => (stopAt[a.reel] ?? 0) - (stopAt[b.reel] ?? 0))
+    .map(({ reel, pushKoma, stopKoma, slip }) => ({ reel, pushKoma, stopKoma, slip }));
+}
+
 /** 押下位置から候補を列挙する */
-export function enumerateCandidates(request: StopRequest): Candidate[] {
+export function enumerateCandidates(request: StopRequest, prevOrder: readonly ReelIndex[], prevMasks: ConditionMasks, mask: (reel: ReelIndex, push: KomaNo, slip: number) => number): Candidate[] {
   const list: Candidate[] = [];
+  const order = [...prevOrder, request.reel];
   for (let slip = 0; slip <= MACHINE.maxSlip; slip++) {
     const koma = slipKoma(request.pushKoma, slip);
     const positions = withStop(request.stopped, request.reel, koma);
-    list.push({ slip, koma, positions, window: buildPartialWindow(positions) });
+    list.push({
+      slip,
+      koma,
+      positions,
+      window: buildPartialWindow(positions),
+      order,
+      masks: withMask(prevMasks, request.reel, mask(request.reel, request.pushKoma, slip)),
+    });
   }
   return list;
 }
 
 /** 1 リールの停止位置を決める */
 export function decideStop(request: StopRequest, options: StopOptions = {}): StopResult {
-  const rules = options.rules ?? STOP_RULES;
+  const set = ruleSetFor(request.flags);
+  const rules = options.rules ?? set.rules;
+  const table = options.reachme ?? REACHME;
+  const la = lookaheadFor(table);
+  const conditions = conditionsOf(table);
+  const history = historyOf(request);
+  const prevOrder = history.map((h) => h.reel);
+  const prevMasks = request.history ? masksOf(conditions, history) : NO_MASKS;
+  const targetRole = targetRoleOf(request.flags);
+  const bonus = request.flags.bonus;
+
   const ctx: StopContext = {
     request,
-    targetRole: targetRoleOf(request.flags),
+    set,
+    targetRole,
     allowedRoles: allowedRolesOf(request.flags),
-    reachme: options.reachme ?? REACHME,
+    reachme: table,
+    conditions,
+    look: (c) => la.query({ target: targetRole, bonus, positions: c.positions, order: c.order, masks: c.masks }),
   };
 
-  const all = enumerateCandidates(request);
+  const all = enumerateCandidates(request, prevOrder, prevMasks, la.mask);
   const evaluations = new Map<Candidate, CandidateEvaluation>(
     all.map((c) => [
       c,
@@ -92,6 +138,7 @@ export function decideStop(request: StopRequest, options: StopOptions = {}): Sto
     pushKoma: request.pushKoma,
     stopKoma: chosen.koma,
     slip: chosen.slip,
+    ruleSet: set.id,
     candidates: all.map((c) => evaluations.get(c)!),
   };
 }
@@ -109,9 +156,11 @@ export function stopSequence(
 ): { positions: readonly [KomaNo, KomaNo, KomaNo]; stops: StopResult[] } {
   let stopped: StopPositions = [null, null, null];
   const stops: StopResult[] = [];
+  const history: StopRecord[] = [];
   for (const reel of order) {
-    const result = decideStop({ reel, pushKoma: pushes[reel], stopped, flags, mode }, options);
+    const result = decideStop({ reel, pushKoma: pushes[reel], stopped, flags, mode, history }, options);
     stops.push(result);
+    history.push({ reel, pushKoma: result.pushKoma, stopKoma: result.stopKoma, slip: result.slip });
     stopped = withStop(stopped, reel, result.stopKoma);
   }
   return { positions: stopped as readonly [KomaNo, KomaNo, KomaNo], stops };
