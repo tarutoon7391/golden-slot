@@ -52,7 +52,7 @@ describe('払い出し判定', () => {
     expect(r.hits).toEqual([]);
   });
 
-  it('G 揃い・赤7 揃いは BIG、BAR 揃いは REG', () => {
+  it('G 揃い・赤7 揃いは BIG、赤7・赤7・BAR は REG。BAR 揃いは何も入賞しない', () => {
     const g = judgeWindow(W(['g', 'bell', 'replay'], ['bell', 'g', 'cherry'], ['replay', 'bell', 'g']), 'normal');
     expect(g.bonusHit).toBe('BIG');
     expect(g.hits[0].patternId).toBe('BIG_G');
@@ -60,9 +60,13 @@ describe('払い出し判定', () => {
     const seven = judgeWindow(W(['seven', 'bell', 'replay'], ['seven', 'g', 'cherry'], ['seven', 'bell', 'g']), 'normal');
     expect(seven.bonusHit).toBe('BIG');
     expect(seven.hits[0].patternId).toBe('BIG_SEVEN');
+    const reg = judgeWindow(W(['seven', 'bell', 'replay'], ['seven', 'g', 'cherry'], ['bar', 'bell', 'g']), 'normal');
+    expect(reg.bonusHit).toBe('REG');
+    expect(reg.hits[0].patternId).toBe('REG_77BAR');
+    expect(reg.totalPayout).toBe(0);
     const bar = judgeWindow(W(['g', 'bell', 'bar'], ['bell', 'bar', 'cherry'], ['bar', 'bell', 'g']), 'normal');
-    expect(bar.bonusHit).toBe('REG');
-    expect(bar.totalPayout).toBe(0);
+    expect(bar.bonusHit).toBeNull();
+    expect(bar.hits).toEqual([]);
   });
 
   it('複数ライン入賞の合計は 1 ゲーム上限で止まる', () => {

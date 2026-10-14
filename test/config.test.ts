@@ -33,9 +33,10 @@ describe('役・入賞形', () => {
     }
   });
 
-  it('BIG は G 揃いと赤7 揃いの 2 形、REG は BAR 揃い', () => {
+  it('BIG は G 揃いと赤7 揃いの 2 形、REG は 赤7・赤7・BAR の 1 形（BAR 揃いは無い）', () => {
     expect(patternsOf('BIG').map((p) => p.id).sort()).toEqual(['BIG_G', 'BIG_SEVEN']);
-    expect(patternsOf('REG').map((p) => p.id)).toEqual(['REG_BAR']);
+    expect(patternsOf('REG').map((p) => p.id)).toEqual(['REG_77BAR']);
+    expect(patternsOf('REG')[0].symbols).toEqual([['seven'], ['seven'], ['bar']]);
   });
 
   it('スイカは 3 つ揃いと代用（左スイカ・中スイカ・右BAR）の 2 形', () => {

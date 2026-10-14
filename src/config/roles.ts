@@ -34,7 +34,8 @@ export const WIN_PATTERNS: readonly WinPattern[] = [
   // --- ボーナス（配当は共通。分けたいときは BONUS_SPECS を kind ごとに変える） ---
   { id: 'BIG_G', role: 'BIG', scope: 'line', symbols: [['g'], ['g'], ['g']] },
   { id: 'BIG_SEVEN', role: 'BIG', scope: 'line', symbols: [['seven'], ['seven'], ['seven']] },
-  { id: 'REG_BAR', role: 'REG', scope: 'line', symbols: [['bar'], ['bar'], ['bar']] },
+  // REG は 赤7・赤7・BAR のみ（BAR 揃いは撤廃）
+  { id: 'REG_77BAR', role: 'REG', scope: 'line', symbols: [['seven'], ['seven'], ['bar']] },
 
   // --- 小役 ---
   { id: 'BELL', role: 'BELL', scope: 'line', symbols: [['bell'], ['bell'], ['bell']] },
