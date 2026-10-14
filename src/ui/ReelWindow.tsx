@@ -17,19 +17,22 @@ interface Props {
   state: GameState;
   /** 入賞ラインを光らせる（払い出し表示中） */
   highlightLines?: readonly LineId[];
+  /** デバッグ: 回転アニメーションを省き、停止位置をそのまま出す */
+  instant?: boolean;
 }
 
-export function ReelWindow({ state, highlightLines = [] }: Props) {
+export function ReelWindow({ state, highlightLines = [], instant = false }: Props) {
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
 
   useEffect(() => {
     const apply = (t: number) => {
       for (const reel of [0, 1, 2] as ReelIndex[]) {
         const el = strips.current[reel];
-        if (el) el.style.transform = `translateY(${translatePercent(reelPosAt(state, reel, t))}%)`;
+        const pos = instant ? (state.positions[reel] ?? state.spinFrom[reel]) : reelPosAt(state, reel, t);
+        if (el) el.style.transform = `translateY(${translatePercent(pos)}%)`;
       }
     };
-    if (state.phase !== 'spinning' && state.phase !== 'payout') {
+    if (instant || (state.phase !== 'spinning' && state.phase !== 'payout')) {
       apply(Date.now());
       return;
     }
@@ -40,7 +43,7 @@ export function ReelWindow({ state, highlightLines = [] }: Props) {
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [state]);
+  }, [state, instant]);
 
   const spinningReels = state.phase === 'spinning' ? state.positions.map((p) => p === null) : [false, false, false];
 

@@ -9,7 +9,7 @@ export const MACHINE = {
   /** サブタイトル（空でもよい） */
   subtitle: 'A-TYPE',
   /** バージョン表記 */
-  version: '0.4.0',
+  version: '0.5.0',
   /** リール本数（Aタイプは3本固定） */
   reelCount: 3,
   /** 1リールのコマ数 */

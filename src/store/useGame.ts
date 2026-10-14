@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, type RefObject } from 'react';
-import type { GameState, KomaNo, LotteryResult, ReelIndex } from '../shared/types.ts';
+import type { GameState, KomaNo, LotteryResult, ReelIndex, Setting } from '../shared/types.ts';
 import { createRng, getRng, setGlobalRng } from '../shared/rng.ts';
 import { MACHINE } from '../config/machine.ts';
 import { tableFor } from '../config/probability.ts';
@@ -30,7 +30,7 @@ export interface GameOverrides {
   pushKoma?: (state: GameState, reel: ReelIndex) => KomaNo | null;
   /** 新しく始めるときの設定を固定する */
   fixedSetting?: () => GameState['setting'] | null;
-  /** 払い出し表示を待たずに即 SETTLE する（回転スキップ用） */
+  /** 待ち時間（ウェイト・回転開始・払い出し表示）をすべて飛ばす（回転スキップ用） */
   skipDelays?: () => boolean;
 }
 
@@ -44,6 +44,8 @@ export interface GameApi {
   refill(): void;
   /** 画面側のアニメーションが使う現在時刻（reducer と同じ時計） */
   now(): number;
+  /** デバッグ: 設定・乱数シードを差し替える（idle / bet のときだけ効く） */
+  debugSet(patch: { setting?: Setting; seed?: number }): void;
 }
 
 const now = () => Date.now();
@@ -117,7 +119,8 @@ export function useGame(overridesRef?: RefObject<GameOverrides | undefined>): Ga
     // 2. 演出計画（結果を変えない）
     const effect = planLeverEffect(situationOf(lottery, s.carriedBonus), rng);
     playLeverSound(effect.leverSound);
-    dispatch({ type: 'LEVER', lottery, carriedBonus, effect, now: now() });
+    const skipWait = overridesRef?.current?.skipDelays?.() ?? false;
+    dispatch({ type: 'LEVER', lottery, carriedBonus, effect, now: now(), skipWait });
   }, [overridesRef]);
 
   const stop = useCallback(
@@ -125,7 +128,9 @@ export function useGame(overridesRef?: RefObject<GameOverrides | undefined>): Ga
       unlockAudio();
       const s = stateRef.current;
       const t = now();
-      if (!canStop(s, reel, t) || !s.lottery) return;
+      // 回転スキップ中は回転開始待ちを見ない
+      const skip = overridesRef?.current?.skipDelays?.() ?? false;
+      if (!canStop(s, reel, skip ? Number.POSITIVE_INFINITY : t) || !s.lottery) return;
       // 押下コマ番号は時刻から（デバッグの指定があればそれを使う）
       const pushKoma = overridesRef?.current?.pushKoma?.(s, reel) ?? pushKomaAt(s, reel, t);
       const flags = toActiveFlags(s.lottery, s.carriedBonus);
@@ -147,5 +152,10 @@ export function useGame(overridesRef?: RefObject<GameOverrides | undefined>): Ga
 
   const refill = useCallback(() => dispatch({ type: 'REFILL', amount: MACHINE.coinRefill }), []);
 
-  return { state, maxBet, lever, stop, quit, newGame, refill, now };
+  const debugSet = useCallback((patch: { setting?: Setting; seed?: number }) => {
+    if (patch.seed !== undefined) setGlobalRng(createRng(patch.seed));
+    dispatch({ type: 'DEBUG_SET', ...patch });
+  }, []);
+
+  return { state, maxBet, lever, stop, quit, newGame, refill, now, debugSet };
 }

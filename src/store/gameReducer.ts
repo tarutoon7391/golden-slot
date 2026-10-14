@@ -35,7 +35,7 @@ export type GameAction =
   /** MAXBET */
   | { type: 'BET' }
   /** レバーオン。抽選結果・持ち越し・演出計画は呼び出し側で決めて渡す */
-  | { type: 'LEVER'; lottery: LotteryResult; carriedBonus: BonusRole | null; effect: EffectPlan; now: number }
+  | { type: 'LEVER'; lottery: LotteryResult; carriedBonus: BonusRole | null; effect: EffectPlan; now: number; skipWait?: boolean }
   /** ストップボタン。停止位置は decideStop の結果をそのまま渡す */
   | { type: 'STOP'; result: StopResult; now: number }
   /** 払い出しを反映して次ゲームへ */
@@ -45,7 +45,9 @@ export type GameAction =
   /** 所持コインを追加（仮想） */
   | { type: 'REFILL'; amount: number }
   /** 保存データから復元 */
-  | { type: 'RESTORE'; state: GameState };
+  | { type: 'RESTORE'; state: GameState }
+  /** デバッグ: 設定・シードを差し替える（idle / bet のときだけ） */
+  | { type: 'DEBUG_SET'; setting?: Setting; seed?: number };
 
 /** 1 コマが中段を通過する時間（ms）。80rpm・21 コマなら約 35.7ms */
 export const MS_PER_KOMA = 60000 / MACHINE.reelRpm / MACHINE.komaCount;
@@ -154,8 +156,8 @@ function bet(s: GameState): GameState {
 
 function lever(s: GameState, a: Extract<GameAction, { type: 'LEVER' }>): GameState {
   if (!canLever(s)) return s;
-  // ウェイト: 前回の回転開始から minGameIntervalMs 経つまで回転を始めない
-  const spinStartAt = Math.max(a.now, s.lastLeverAt + MACHINE.minGameIntervalMs);
+  // ウェイト: 前回の回転開始から minGameIntervalMs 経つまで回転を始めない（デバッグの skipWait なら即開始）
+  const spinStartAt = a.skipWait ? a.now : Math.max(a.now, s.lastLeverAt + MACHINE.minGameIntervalMs);
   const from = s.positions.map((p) => p ?? 21) as [KomaNo, KomaNo, KomaNo];
   return {
     ...s,
@@ -281,5 +283,8 @@ export function gameReducer(s: GameState, a: GameAction): GameState {
       return s.phase === 'idle' ? { ...s, coins: s.coins + a.amount } : s;
     case 'RESTORE':
       return a.state;
+    case 'DEBUG_SET':
+      if (s.phase !== 'idle' && s.phase !== 'bet') return s;
+      return { ...s, setting: a.setting ?? s.setting, seed: a.seed ?? s.seed };
   }
 }

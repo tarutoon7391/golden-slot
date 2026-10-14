@@ -11,7 +11,7 @@ import type { LotteryRowKey, Setting } from '../../src/shared/types.ts';
 import { ROW_KEYS } from '../../src/lottery/lottery.ts';
 import { ALL_SETTINGS } from '../../src/lottery/setting.ts';
 import { BONUS_SPECS } from '../../src/config/roles.ts';
-import { oneIn, payoutRate, simulate, type SimResult } from './simulate.ts';
+import { oneIn, payoutRate, simulate, type SimResult } from '../../src/sim/simulate.ts';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);

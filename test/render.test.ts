@@ -16,7 +16,7 @@ import { ResultScreen } from '../src/ui/ResultScreen.tsx';
 
 function fakeApi(state: GameState): GameApi {
   const noop = () => {};
-  return { state, maxBet: noop, lever: noop, stop: noop, quit: noop, newGame: noop, refill: noop, now: () => 0 };
+  return { state, maxBet: noop, lever: noop, stop: noop, quit: noop, newGame: noop, refill: noop, now: () => 0, debugSet: noop };
 }
 
 describe('画面の描画', () => {

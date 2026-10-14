@@ -1,5 +1,5 @@
 import type { GameState, ReelIndex } from '../shared/types.ts';
-import { KOMA_COUNT } from '../config/reels.ts';
+import { KOMA_COUNT, normalizeKoma } from '../config/reels.ts';
 import { MS_PER_KOMA } from '../store/gameReducer.ts';
 
 /**
@@ -7,7 +7,8 @@ import { MS_PER_KOMA } from '../store/gameReducer.ts';
  *
  * 位置は「中段にあるコマ番号」を実数で持つ（pos・正規化しない）。
  * - 回転中: pos = spinFrom + 経過時間 ÷ MS_PER_KOMA（reducer の pushKomaAt と同じ式）
- * - 停止後: 押した時刻の pos を切り捨てた値 + スベリ数 まで進んで止まる（decideStop の結果どおり）
+ * - 停止後: 押した時刻の pos から前方に進んで stopKoma で止まる（decideStop の結果どおり）。
+ *   通常は押下位置 + スベリ数。デバッグで押下位置を差し替えたときも必ず stopKoma に合わせる
  */
 
 /** 帯に並べる配列の周回数 */
@@ -24,7 +25,8 @@ export function reelPosAt(s: GameState, reel: ReelIndex, t: number): number {
   const result = s.stops[reel];
   if (stopAt === null || !result) return stopped;
   const pushPos = s.spinFrom[reel] + Math.floor(Math.max(0, stopAt - s.spinStartAt) / MS_PER_KOMA);
-  return Math.min(cur, pushPos + result.slip);
+  const forward = (((result.stopKoma - normalizeKoma(pushPos)) % KOMA_COUNT) + KOMA_COUNT) % KOMA_COUNT;
+  return Math.min(cur, pushPos + forward);
 }
 
 /** pos → 帯の translateY（%・帯の高さ基準）。帯は配列を STRIP_COPIES 回つなげたもの */

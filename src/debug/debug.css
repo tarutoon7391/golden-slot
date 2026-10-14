@@ -1,0 +1,169 @@
+/* デバッグパネル（?debug=1）のスタイル。色は index.css の変数を使う */
+
+.debug-panel {
+  margin-top: 12px;
+  padding: 8px 10px 12px;
+  border: 1px dashed var(--gold-dark);
+  border-radius: 8px;
+  background: #0a0a0a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dbg-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  color: var(--gold);
+}
+.dbg-section {
+  border-top: 1px solid #222;
+  padding: 6px 0;
+}
+.dbg-section > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--gold-light);
+}
+.dbg-section h3 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.dbg-note {
+  margin: 6px 0 0;
+  opacity: 0.6;
+  font-size: 11px;
+}
+.dbg-list {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+/* key / value */
+.dbg-grid {
+  margin: 6px 0 0;
+  display: grid;
+  gap: 2px 8px;
+}
+.dbg-grid > div {
+  display: grid;
+  grid-template-columns: 9em 1fr;
+  gap: 6px;
+}
+.dbg-grid dt {
+  opacity: 0.6;
+}
+.dbg-grid dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+/* 入力の並び */
+.dbg-row-flex {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 6px;
+}
+.dbg-row-flex label,
+.dbg-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dbg-check {
+  margin-top: 6px;
+}
+.debug-panel input[type='number'],
+.debug-panel select {
+  font: inherit;
+  color: var(--fg);
+  background: #161616;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+.debug-panel input[type='number'] {
+  width: 6.5em;
+}
+.debug-panel .btn-text {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+.dbg-progress {
+  width: 160px;
+  accent-color: var(--gold);
+}
+
+/* 表 */
+.dbg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+.dbg-table th,
+.dbg-table td {
+  border: 1px solid #262626;
+  padding: 2px 4px;
+  text-align: center;
+  white-space: nowrap;
+}
+.dbg-table th {
+  background: #151515;
+  font-weight: 600;
+}
+.dbg-table tr.chosen td {
+  background: #2a2208;
+  color: var(--gold-light);
+}
+.dbg-table td.verdict-accept {
+  color: var(--plus);
+}
+.dbg-table td.verdict-reject {
+  color: var(--minus);
+}
+.dbg-table td.verdict-neutral {
+  opacity: 0.5;
+}
+.dbg-table tr.reason-row td {
+  text-align: left;
+  white-space: normal;
+  font-size: 10px;
+  opacity: 0.8;
+}
+.dbg-sim td:first-child {
+  text-align: left;
+}
+.dbg-sim td {
+  white-space: normal;
+}
+.dbg-reel-block {
+  overflow-x: auto;
+}
+.dbg-symbols {
+  display: inline-flex;
+  gap: 1px;
+}
+.dbg-symbols img {
+  width: 22px;
+  height: 14px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 2px;
+}
+
+/* 出目のコピー欄 */
+.dbg-code {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--fg);
+  background: #161616;
+  border: 1px solid #333;
+  border-radius: 4px;
+  resize: vertical;
+}

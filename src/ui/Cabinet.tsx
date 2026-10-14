@@ -29,7 +29,14 @@ function useFlash(state: GameState): string {
   return flash !== 'none' && !done && state.phase !== 'spinning' ? flash : 'none';
 }
 
-export function Cabinet({ api, children }: { api: GameApi; children?: ReactNode }) {
+interface CabinetProps {
+  api: GameApi;
+  children?: ReactNode;
+  /** デバッグ: 回転アニメーションを省く */
+  instantReels?: boolean;
+}
+
+export function Cabinet({ api, children, instantReels = false }: CabinetProps) {
   const { state } = api;
   const waiting = useWaiting(state);
   const flash = useFlash(state);
@@ -69,7 +76,7 @@ export function Cabinet({ api, children }: { api: GameApi; children?: ReactNode 
 
       <section className={windowClass}>
         <div className={`lamp${effect?.lamp === 'on' ? ' on' : ''}`} aria-label="告知ランプ" />
-        <ReelWindow state={state} highlightLines={hitLines} />
+        <ReelWindow state={state} highlightLines={hitLines} instant={instantReels} />
         <div className="info-row">
           <div className="info-item">
             <span className="info-label">CREDIT</span>
