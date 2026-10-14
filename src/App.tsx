@@ -1,16 +1,12 @@
-import { MACHINE } from './config/machine.ts'
+import { useGame } from './store/useGame.ts';
+import { Cabinet } from './ui/Cabinet.tsx';
+import './ui/cabinet.css';
 
 /**
  * アプリのルート。
- * フェーズ0では機種名を表示するだけの土台。フェーズ4で筐体UIに差し替える。
+ * ゲームの状態は useGame が持ち、筐体 UI（Cabinet）に渡すだけ。
  */
 export default function App() {
-  return (
-    <main className="app">
-      <h1 className="title">{MACHINE.name}</h1>
-      <p className="subtitle">{MACHINE.subtitle}</p>
-      <p className="note">土台（フェーズ0）: 画面はフェーズ4で実装します</p>
-      <p className="version">v{MACHINE.version}</p>
-    </main>
-  )
+  const api = useGame();
+  return <Cabinet api={api} />;
 }

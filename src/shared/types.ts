@@ -288,8 +288,14 @@ export interface Counters {
   /** 払い出し枚数の累計 */
   coinsOut: number;
   history: BonusHistoryEntry[];
-  /** 差枚数の推移（グラフ用。一定ゲーム間隔で記録） */
+  /** 差枚数の推移（グラフ用。diffStep ゲームごとに記録） */
   diffSeries: number[];
+  /** diffSeries の記録間隔（ゲーム数）。点数が上限を超えると 2 倍にして間引く */
+  diffStep: number;
+  /** 通常時のゲーム数（設定推測の分母） */
+  normalGames: number;
+  /** 通常時に入賞した小役の回数（設定推測・履歴表示用） */
+  smallCounts: Record<SmallRole, number>;
 }
 
 /** ボーナス中の進行状況 */
@@ -326,6 +332,15 @@ export interface GameState {
   counters: Counters;
   /** 前回レバーオン時刻（ウェイト制御用・ms） */
   lastLeverAt: number;
+  /**
+   * リールが回り始める時刻（ms）。ウェイト中はレバーオンより後になる。
+   * 押下コマ番号は「spinFrom + 経過時間 ÷ 1 コマの時間」で決める（画面と reducer で同じ式を使う）
+   */
+  spinStartAt: number;
+  /** 回転開始時に中段にあったコマ番号（前ゲームの停止位置） */
+  spinFrom: readonly [KomaNo, KomaNo, KomaNo];
+  /** 各リールのストップボタンを押した時刻（ms）。未停止は null */
+  stopAt: readonly [number | null, number | null, number | null];
 }
 
 // ---------------------------------------------------------------------------

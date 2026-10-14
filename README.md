@@ -35,13 +35,14 @@ golden-slot/
 │   ├─ main.tsx            React のエントリ
 │   ├─ App.tsx             画面のルート
 │   ├─ config/             ★ 調整する場所はすべてここ（数値をコードに埋め込まない）
-│   │   ├─ machine.ts      機種名・掛け枚数・ウェイトなど
+│   │   ├─ machine.ts      機種名・掛け枚数・ウェイト・コイン・タイミングなど
 │   │   ├─ reels.ts        リール配列（確定済み・変更しない）
 │   │   ├─ roles.ts        役・入賞形・配当
 │   │   ├─ probability.ts  設定1〜6の確率テーブル
 │   │   ├─ reachme.ts      リーチ目テーブル（中身は自分で書く）
 │   │   ├─ effects.ts      演出期待度テーブル
-│   │   ├─ keys.ts         PC のキー操作（フェーズ4）
+│   │   ├─ keys.ts         PC のキー操作の割り当て
+│   │   ├─ sounds.ts       効果音・BGM の音程と長さ（Web Audio で合成）
 │   │   ├─ symbols.ts      図柄の表示名・画像パス
 │   │   └─ lines.ts        有効ライン5本の定義
 │   ├─ shared/
@@ -55,11 +56,27 @@ golden-slot/
 │   │   ├─ reachme.ts      リーチ目の照合・reachme.ts 書式への変換
 │   │   └─ window.ts       停止位置 → 窓（3×3 図柄）
 │   ├─ payout/judge.ts     払い出し判定（5ライン・代用スイカ・左チェリー・1G上限）
-│   └─ ui/                 筐体 UI・データカウンター・デバッグパネル
+│   ├─ effects/
+│   │   ├─ plan.ts         演出計画（抽選結果→予告音・フラッシュ・BGM。結果は変えない）
+│   │   └─ audio.ts        Web Audio 合成（初回操作で AudioContext を resume）
+│   ├─ store/
+│   │   ├─ gameReducer.ts  ゲーム進行の reducer（BET→レバー→停止→払い出し→次G・ウェイト・カウンター）
+│   │   ├─ useGame.ts      画面とロジックをつなぐ hook（内部抽選→リール制御→演出の順を固定）
+│   │   ├─ storage.ts      localStorage 保存・復元（try/catch）
+│   │   └─ estimate.ts     データからの設定推測
+│   └─ ui/                 筐体 UI（Cabinet・ReelWindow・Controls・DataCounter・DiffGraph・ResultScreen）
 └─ test/                   単体テスト（Vitest）
 ```
 
 処理順は必ず「内部抽選 → リール制御 → 演出」です。表示は抽選結果に従います。
+
+## 遊び方
+
+- **PC**: MAXBET = `1` / `B` / `↑`、レバー = `Enter` / `Space` / `↓`、ストップ = `←` `X` `→`（または `Z` `X` `C`）、やめる = `Esc`。割り当ては `src/config/keys.ts`
+- **スマホ**: ボタンをタップ
+- 設定（1〜6）はゲーム開始時に重み付きランダムで決まり非公開。「やめる」で設定発表と、データからの推測結果が出る
+- 進行状況は localStorage に自動保存され、再読み込みしても続きから遊べる
+- 仮想コインが足りなくなったら「コインを追加」で補充できる（仮想）
 
 ## 仕様メモ
 
@@ -73,7 +90,7 @@ golden-slot/
 | 1 | config（確率・配列・役） | 完了 |
 | 2 | 抽選とシミュレーター | 完了 |
 | 3 | リール制御（最小限） | 完了 |
-| 4 | 画面・データカウンター・保存 | 未着手 |
+| 4 | 画面・データカウンター・保存 | 完了 |
 | 5 | デバッグモード（`?debug=1`） | 未着手 |
 | 6 | 公開（GitHub → Railway） | 未着手 |
 
