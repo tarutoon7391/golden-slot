@@ -119,6 +119,8 @@ export interface WinPattern {
   scope: 'line' | 'leftReel';
   /** scope が 'leftReel' のとき、入賞とみなす段。省略時は全段 */
   leftRows?: readonly RowIndex[];
+  /** このパターン固有の払い出し枚数。省略時は RoleDef.payout を使う（角チェリー／中段チェリーの差など） */
+  payout?: number;
 }
 
 /** 役の配当定義 */
@@ -130,6 +132,16 @@ export interface RoleDef {
   payout: number;
   /** リプレイ（次ゲーム自動ベット）か */
   isReplay: boolean;
+  /** ボーナス中の払い出し枚数（省略時は payout と同じ） */
+  payoutInBonus?: number;
+}
+
+/** ボーナスの仕様（終了条件） */
+export interface BonusSpec {
+  kind: BonusRole;
+  label: string;
+  /** この枚数以上払い出したら終了 */
+  maxPayout: number;
 }
 
 /** 1 ラインぶんの入賞 */
@@ -314,4 +326,85 @@ export interface GameState {
   counters: Counters;
   /** 前回レバーオン時刻（ウェイト制御用・ms） */
   lastLeverAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// 抽選テーブル（config/probability.ts）
+// ---------------------------------------------------------------------------
+
+/**
+ * 抽選テーブルの行。単独役と、ボーナス＋小役の重複行を持つ。
+ * 行に無いぶん（denom − 合計）がハズレ。
+ */
+export type LotteryRowKey =
+  | 'BIG'
+  | 'REG'
+  | 'BELL'
+  | 'MELON'
+  | 'CHERRY'
+  | 'REPLAY'
+  | 'BIG_CHERRY' // BIG＋チェリー重複
+  | 'BIG_MELON' // BIG＋スイカ重複
+  | 'REG_CHERRY' // REG＋チェリー重複
+  | 'REG_MELON'; // REG＋スイカ重複
+
+/** 1 モードぶんの抽選テーブル。各行の重みは整数、分母も整数 */
+export interface LotteryTable {
+  denom: number;
+  weights: Record<LotteryRowKey, number>;
+}
+
+// ---------------------------------------------------------------------------
+// リーチ目（config/reachme.ts）
+// ---------------------------------------------------------------------------
+
+/** 出目パターンの 1 マス。'*' は任意の図柄 */
+export type SymbolPattern = SymbolId | '*';
+
+/** 1 リールぶんの出目パターン [上段, 中段, 下段] */
+export type ReelPattern = readonly [SymbolPattern, SymbolPattern, SymbolPattern];
+
+/** リーチ目の扱い */
+export type ReachmeUsage =
+  | 'both' // 内部中は優先・非成立時は除外（既定）
+  | 'preferOnly' // 内部中に優先するだけ（非成立時にも出うる＝ガセ目にしたいとき）
+  | 'excludeOnly'; // 非成立時に除外するだけ
+
+/** リーチ目 1 件 */
+export interface ReachmePattern {
+  id: string;
+  /** 表示名・メモ */
+  label: string;
+  /**
+   * [左, 中, 右] の出目。null はそのリールを見ない
+   * （例: 左・中の 2 リールで決まるリーチ目は右を null にする）
+   */
+  reels: readonly [ReelPattern | null, ReelPattern | null, ReelPattern | null];
+  /** 省略時は 'both' */
+  usage?: ReachmeUsage;
+  /** 対象ボーナス。省略時は BIG・REG 両方 */
+  bonus?: readonly BonusRole[];
+}
+
+// ---------------------------------------------------------------------------
+// 演出期待度（config/effects.ts）
+// ---------------------------------------------------------------------------
+
+/** 演出を振り分けるときの状況 */
+export type EffectSituation =
+  | 'none' // ハズレ・ボーナス非成立
+  | 'small' // 小役当選・ボーナス非成立
+  | 'bonusNew' // 今ゲームでボーナス当選
+  | 'bonusCarry'; // ボーナス持ち越し中
+
+/** 状況ごとの重み表。キーが演出ID、値が重み（整数） */
+export type EffectWeightTable<T extends string> = Record<EffectSituation, Partial<Record<T, number>>>;
+
+/** 演出期待度テーブル全体 */
+export interface EffectTable {
+  leverSound: EffectWeightTable<LeverSoundId>;
+  /** ボーナス図柄が揃った瞬間に出すフラッシュ */
+  bonusConfirmFlash: FlashId;
+  /** ボーナス中の BGM */
+  bgm: Record<BonusRole, BgmId>;
 }
