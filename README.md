@@ -27,6 +27,7 @@ golden-slot/
 ├─ index.html              エントリ HTML
 ├─ public/
 │   └─ symbols/            図柄画像（1図柄1ファイル・SVG）
+├─ docs/reachme/          リーチ目・リール制御の仕様書 v1.0 と検算スクリプト（フェーズ7の元ネタ）
 ├─ scripts/
 │   ├─ server.mjs          dist を静的配信する最小サーバー（npm start）
 │   ├─ sim/run.ts          シミュレーター CLI（npm run sim。本体は src/sim/simulate.ts）
@@ -114,9 +115,30 @@ URL に `?debug=1` を付けると筐体の下にデバッグパネルが出る�
 | 3 | リール制御（最小限） | 完了 |
 | 4 | 画面・データカウンター・保存 | 完了 |
 | 5 | デバッグモード（`?debug=1`） | 完了 |
-| 6 | 公開（GitHub → Railway） | 未着手 |
+| 6 | 公開（GitHub → Railway） | 完了 |
+| 7a | ボーナス3種（BIG7/BIGG/REG）の分離・REG のライン制限・角チェリーのみ・リーチ目役A/B・確率再調整 | 未着手 |
+| 7b | 状態別の制御（STOP_RULE_SETS）・リーチ目の条件（スベリ数・押し順）・先読みの拡張・総当たりテスト | 未着手 |
+| 7c | リーチ目一覧（docs/reachme）の登録と検算 | 未着手 |
 
 ## Railway へのデプロイ
 
-フェーズ6で手順を記載します。
-（Build: `npm run build` / Start: `npm start` / `PORT` は Railway が注入）
+静的ファイルを `scripts/server.mjs` で配信するだけなので、データベースや環境変数の設定は不要。
+
+1. GitHub にこのリポジトリを push する
+2. Railway で **New Project → Deploy from GitHub repo** を選び、`golden-slot` を選ぶ
+3. サービスの **Settings** で次を確認する（`package.json` から自動検出されるはずだが、違っていたら手で入れる）
+   - Build Command: `npm run build`
+   - Start Command: `npm start`
+   - Node のバージョンは `package.json` の `engines`（22.18 以上）から決まる。古い Node が選ばれてビルドが失敗したら、Variables に `NIXPACKS_NODE_VERSION=22`（または Railpack なら `NODE_VERSION=22`）を足す
+4. `PORT` は Railway が自動で注入する。サーバーはそれを読んで待ち受ける（未設定なら 3000）
+5. **Settings → Networking → Generate Domain** で公開 URL を作る
+6. 公開 URL を開いて、リールが回る・音が鳴る・`?debug=1` でデバッグパネルが出ることを確認する
+
+以後は main ブランチへ push するたびに自動で再デプロイされる。
+
+ローカルで本番と同じ配信を試すには:
+
+```sh
+npm run build
+npm start          # http://localhost:3000
+```
