@@ -19,6 +19,8 @@ export const MACHINE = {
   replayBet: 3,
   /** 最短ゲーム間隔（ミリ秒・4.1秒ウェイト） */
   minGameIntervalMs: 4100,
+  /** 最大スベリコマ数（押下位置から 0〜4 コマ） */
+  maxSlip: 4,
   /** リール回転速度（rpm・約80相当） */
   reelRpm: 80,
 } as const;

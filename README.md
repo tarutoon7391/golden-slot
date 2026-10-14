@@ -29,7 +29,8 @@ golden-slot/
 │   └─ symbols/            図柄画像（1図柄1ファイル・SVG）
 ├─ scripts/
 │   ├─ server.mjs          dist を静的配信する最小サーバー（npm start）
-│   └─ sim/run.ts          シミュレーター（npm run sim）
+│   ├─ sim/run.ts          シミュレーター（npm run sim）
+│   └─ probe/pullin.ts     停止制御の網羅チェック（全役×全押し順×全押下位置）
 ├─ src/
 │   ├─ main.tsx            React のエントリ
 │   ├─ App.tsx             画面のルート
@@ -47,8 +48,13 @@ golden-slot/
 │   │   ├─ types.ts        型定義の集約
 │   │   └─ rng.ts          乱数の集約（シード指定可・Math.random 直呼び禁止）
 │   ├─ lottery/            内部抽選（設定別・フラグ持ち越し）
-│   ├─ reel/               リール制御（引き込み→蹴飛ばし→スベリ最小 のルール配列）
-│   ├─ payout/             払い出し判定（5ライン・代用スイカ・左チェリー）
+│   ├─ reel/
+│   │   ├─ rules.ts        ★ 停止制御のルール配列（引き込み→蹴飛ばし→リーチ目→スベリ最小）
+│   │   ├─ control.ts      候補列挙とルール適用の仕組み（stopSequence で 3 リール一括）
+│   │   ├─ lookahead.ts    先読み（残りリールをどう押されても揃う／揃わないか。メモ化）
+│   │   ├─ reachme.ts      リーチ目の照合・reachme.ts 書式への変換
+│   │   └─ window.ts       停止位置 → 窓（3×3 図柄）
+│   ├─ payout/judge.ts     払い出し判定（5ライン・代用スイカ・左チェリー・1G上限）
 │   └─ ui/                 筐体 UI・データカウンター・デバッグパネル
 └─ test/                   単体テスト（Vitest）
 ```
@@ -62,7 +68,7 @@ golden-slot/
 | 0 | 土台（プロジェクト・型・乱数・scripts） | 完了 |
 | 1 | config（確率・配列・役） | 完了 |
 | 2 | 抽選とシミュレーター | 完了 |
-| 3 | リール制御（最小限） | 未着手 |
+| 3 | リール制御（最小限） | 完了 |
 | 4 | 画面・データカウンター・保存 | 未着手 |
 | 5 | デバッグモード（`?debug=1`） | 未着手 |
 | 6 | 公開（GitHub → Railway） | 未着手 |
