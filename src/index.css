@@ -1,0 +1,62 @@
+/* 全体の基本スタイル。筐体UIの詳細は src/ui/ 側で定義する */
+:root {
+  --bg: #111;
+  --fg: #f4f4f4;
+  --gold: #d9a520;
+  --gold-light: #ffe28a;
+  --gold-dark: #8a5a00;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans JP', sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.app {
+  width: 100%;
+  max-width: 480px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 48px;
+  letter-spacing: 0.1em;
+  font-style: italic;
+  background: linear-gradient(180deg, var(--gold-light), var(--gold) 50%, var(--gold-dark));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.subtitle {
+  margin: 4px 0 24px;
+  letter-spacing: 0.3em;
+  opacity: 0.8;
+}
+
+.note {
+  opacity: 0.7;
+}
+
+.version {
+  font-size: 12px;
+  opacity: 0.5;
+}
