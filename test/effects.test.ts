@@ -9,7 +9,7 @@ const NO_PAYOUT: PayoutResult = { hits: [], totalPayout: 0, replay: false, bonus
 
 describe('演出計画', () => {
   it('状況の判定: 新規ボーナス > 持ち越し > 小役 > ハズレ', () => {
-    expect(situationOf({ small: 'CHERRY', bonus: 'BIG' }, null)).toBe('bonusNew');
+    expect(situationOf({ small: 'CHERRY', bonus: 'BIG7' }, null)).toBe('bonusNew');
     expect(situationOf({ small: 'BELL', bonus: null }, 'REG')).toBe('bonusCarry');
     expect(situationOf({ small: 'BELL', bonus: null }, null)).toBe('small');
     expect(situationOf({ small: null, bonus: null }, null)).toBe('none');
@@ -33,15 +33,17 @@ describe('演出計画', () => {
   });
 
   it('ボーナス図柄が揃ったらフラッシュと告知ランプ、BGM はそのボーナスのもの', () => {
-    const p = planResultEffect(null, { ...NO_PAYOUT, bonusHit: 'REG' }, 'normal');
+    const p = planResultEffect(null, { ...NO_PAYOUT, bonusHit: 'REG' }, null);
     expect(p.flash).toBe(EFFECTS.bonusConfirmFlash);
     expect(p.lamp).toBe('on');
     expect(p.bgm).toBe(EFFECTS.bgm.REG);
   });
 
   it('ボーナス中は BGM が鳴り続け、通常時のハズレは何も無い', () => {
-    expect(planResultEffect(null, NO_PAYOUT, 'big').bgm).toBe('big');
-    const none = planResultEffect(null, NO_PAYOUT, 'normal');
+    expect(planResultEffect(null, NO_PAYOUT, 'BIG7').bgm).toBe('big');
+    expect(planResultEffect(null, NO_PAYOUT, 'BIGG').bgm).toBe('big');
+    expect(planResultEffect(null, NO_PAYOUT, 'REG').bgm).toBe('reg');
+    const none = planResultEffect(null, NO_PAYOUT, null);
     expect(none.flash).toBe('none');
     expect(none.bgm).toBe('none');
     expect(none.blackout).toBe(false);

@@ -1,4 +1,4 @@
-import type { BonusRole, EffectPlan, EffectSituation, EffectTable, GameMode, LeverSoundId, LotteryResult, PayoutResult } from '../shared/types.ts';
+import type { BonusRole, EffectPlan, EffectSituation, EffectTable, LeverSoundId, LotteryResult, PayoutResult } from '../shared/types.ts';
 import type { Rng } from '../shared/rng.ts';
 import { EFFECTS } from '../config/effects.ts';
 
@@ -29,10 +29,13 @@ export function planLeverEffect(situation: EffectSituation, rng: Rng, table: Eff
   return { leverSound, blackout: false, flash: 'none', lamp: 'none', bgm: 'none', sourceKey: situation };
 }
 
-/** 全停止後の演出計画（ボーナス図柄が揃ったらフラッシュ、ボーナス中は BGM） */
-export function planResultEffect(plan: EffectPlan | null, payout: PayoutResult, mode: GameMode, table: EffectTable = EFFECTS): EffectPlan {
+/**
+ * 全停止後の演出計画（ボーナス図柄が揃ったらフラッシュ、ボーナス中は BGM）
+ * currentBonus は消化中のボーナス（通常時は null）
+ */
+export function planResultEffect(plan: EffectPlan | null, payout: PayoutResult, currentBonus: BonusRole | null, table: EffectTable = EFFECTS): EffectPlan {
   const base: EffectPlan = plan ?? { leverSound: 'none', blackout: false, flash: 'none', lamp: 'none', bgm: 'none' };
-  const kind: BonusRole | null = payout.bonusHit ?? (mode === 'big' ? 'BIG' : mode === 'reg' ? 'REG' : null);
+  const kind: BonusRole | null = payout.bonusHit ?? currentBonus;
   return {
     ...base,
     flash: payout.bonusHit ? table.bonusConfirmFlash : 'none',

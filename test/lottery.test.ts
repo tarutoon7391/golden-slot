@@ -30,9 +30,12 @@ describe('抽選（行の決定）', () => {
   });
 
   it('行キー → 当選内容（重複は小役とボーナスの両方を持つ）', () => {
-    expect(rowToResult('BIG')).toEqual({ small: null, bonus: 'BIG' });
-    expect(rowToResult('BIG_CHERRY')).toEqual({ small: 'CHERRY', bonus: 'BIG' });
+    expect(rowToResult('BIG7')).toEqual({ small: null, bonus: 'BIG7' });
+    expect(rowToResult('BIGG_CHERRY')).toEqual({ small: 'CHERRY', bonus: 'BIGG' });
     expect(rowToResult('REG_MELON')).toEqual({ small: 'MELON', bonus: 'REG' });
+    expect(rowToResult('BIG7_REACH_A')).toEqual({ small: 'REACH_A', bonus: 'BIG7' });
+    expect(rowToResult('REG_REACH_B')).toEqual({ small: 'REACH_B', bonus: 'REG' });
+    expect(rowToResult('NONE')).toEqual({ small: null, bonus: null });
     expect(rowToResult('BELL')).toEqual({ small: 'BELL', bonus: null });
     expect(rowToResult('NONE')).toEqual({ small: null, bonus: null });
   });
@@ -72,21 +75,21 @@ describe('抽選（行の決定）', () => {
 
 describe('持ち越しと小役優先', () => {
   it('新規ボーナス当選は持ち越しに積まれる', () => {
-    const { lottery, carriedBonus } = applyCarry({ small: null, bonus: 'BIG' }, null);
-    expect(carriedBonus).toBe('BIG');
-    expect(lottery.bonus).toBe('BIG');
+    const { lottery, carriedBonus } = applyCarry({ small: null, bonus: 'BIG7' }, null);
+    expect(carriedBonus).toBe('BIG7');
+    expect(lottery.bonus).toBe('BIG7');
   });
 
   it('持ち越し中に新たなボーナスを引いても無視し、重複の小役だけ残る', () => {
-    const { lottery, carriedBonus } = applyCarry({ small: 'CHERRY', bonus: 'REG' }, 'BIG');
-    expect(carriedBonus).toBe('BIG'); // 先に成立していた BIG を維持
+    const { lottery, carriedBonus } = applyCarry({ small: 'CHERRY', bonus: 'REG' }, 'BIG7');
+    expect(carriedBonus).toBe('BIG7'); // 先に成立していた BIG を維持
     expect(lottery.bonus).toBeNull(); // 新規 REG は捨てる
     expect(lottery.small).toBe('CHERRY'); // チェリーは有効
   });
 
   it('持ち越し中に小役を引いたら小役優先（ボーナスは揃えられない）', () => {
-    const flags = toActiveFlags({ small: 'BELL', bonus: null }, 'BIG');
-    expect(flags).toEqual({ small: 'BELL', bonus: 'BIG' });
+    const flags = toActiveFlags({ small: 'BELL', bonus: null }, 'BIG7');
+    expect(flags).toEqual({ small: 'BELL', bonus: 'BIG7' });
     expect(smallHasPriority(flags)).toBe(true);
     expect(canAlignBonus(flags)).toBe(false);
   });
@@ -97,9 +100,9 @@ describe('持ち越しと小役優先', () => {
   });
 
   it('重複当選したゲームも小役優先', () => {
-    const { lottery, carriedBonus } = applyCarry({ small: 'MELON', bonus: 'BIG' }, null);
+    const { lottery, carriedBonus } = applyCarry({ small: 'MELON', bonus: 'BIG7' }, null);
     const flags = toActiveFlags(lottery, carriedBonus);
-    expect(flags).toEqual({ small: 'MELON', bonus: 'BIG' });
+    expect(flags).toEqual({ small: 'MELON', bonus: 'BIG7' });
     expect(canAlignBonus(flags)).toBe(false);
   });
 

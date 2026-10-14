@@ -1,5 +1,6 @@
-import type { ActiveFlags, BonusRole, LotteryResult, LotteryRowKey, LotteryTable, SmallRole } from '../shared/types.ts';
+import type { ActiveFlags, BonusDupRole, BonusRole, LotteryResult, LotteryRowKey, LotteryTable, SmallRole } from '../shared/types.ts';
 import type { Rng } from '../shared/rng.ts';
+import { BONUS_ROLES, ROLES } from '../config/roles.ts';
 
 /**
  * 内部抽選
@@ -8,48 +9,58 @@ import type { Rng } from '../shared/rng.ts';
  * - 行に無いぶんはハズレ
  * - ボーナスは持ち越す。持ち越し中に新たなボーナスを引いても無視する（小役の重複分は有効）
  * - 持ち越し中は小役優先（ActiveFlags で small が null でない限り、リール制御は小役を引き込む）
+ * - リーチ目役（REACH_A / REACH_B）はボーナス当選ゲームの重複行だけにある（持ち越し中は抽選しない）
  */
 
+/** ボーナスに重複しうる役 */
+export const BONUS_DUP_ROLES: readonly BonusDupRole[] = ['CHERRY', 'MELON', 'REACH_A', 'REACH_B'];
+
+/** 役名の一覧（表示用） */
+export const SMALL_ROLES: readonly SmallRole[] = ['BELL', 'MELON', 'CHERRY', 'REPLAY', 'REACH_A', 'REACH_B'];
+export { BONUS_ROLES };
+
+/** ボーナス kind の行（単独＋重複） */
+export function bonusRowsOf(kind: BonusRole): LotteryRowKey[] {
+  return [kind, ...BONUS_DUP_ROLES.map((d): LotteryRowKey => `${kind}_${d}`)];
+}
+
 /** 行の順序。乱数の積み上げ順なので変えるとシード再現が崩れる */
-export const ROW_KEYS: readonly LotteryRowKey[] = [
-  'BIG',
-  'BIG_CHERRY',
-  'BIG_MELON',
-  'REG',
-  'REG_CHERRY',
-  'REG_MELON',
-  'BELL',
-  'MELON',
-  'CHERRY',
-  'REPLAY',
-];
+export const ROW_KEYS: readonly LotteryRowKey[] = [...BONUS_ROLES.flatMap(bonusRowsOf), 'BELL', 'MELON', 'CHERRY', 'REPLAY'];
+
+/** 行キー → 当選内容（表） */
+const ROW_RESULTS: Record<LotteryRowKey | 'NONE', LotteryResult> = (() => {
+  const out = { NONE: { small: null, bonus: null } } as Record<LotteryRowKey | 'NONE', LotteryResult>;
+  for (const kind of BONUS_ROLES) {
+    out[kind] = { small: null, bonus: kind };
+    for (const d of BONUS_DUP_ROLES) out[`${kind}_${d}`] = { small: d, bonus: kind };
+  }
+  for (const s of ['BELL', 'MELON', 'CHERRY', 'REPLAY'] as const) out[s] = { small: s, bonus: null };
+  return out;
+})();
 
 /** 行キー → 当選内容 */
 export function rowToResult(key: LotteryRowKey | 'NONE'): LotteryResult {
-  switch (key) {
-    case 'BIG':
-      return { small: null, bonus: 'BIG' };
-    case 'BIG_CHERRY':
-      return { small: 'CHERRY', bonus: 'BIG' };
-    case 'BIG_MELON':
-      return { small: 'MELON', bonus: 'BIG' };
-    case 'REG':
-      return { small: null, bonus: 'REG' };
-    case 'REG_CHERRY':
-      return { small: 'CHERRY', bonus: 'REG' };
-    case 'REG_MELON':
-      return { small: 'MELON', bonus: 'REG' };
-    case 'BELL':
-      return { small: 'BELL', bonus: null };
-    case 'MELON':
-      return { small: 'MELON', bonus: null };
-    case 'CHERRY':
-      return { small: 'CHERRY', bonus: null };
-    case 'REPLAY':
-      return { small: 'REPLAY', bonus: null };
-    case 'NONE':
-      return { small: null, bonus: null };
+  return { ...ROW_RESULTS[key] };
+}
+
+/** 行キーの表示名（例: BIG7+チェリー） */
+export const ROW_LABELS: Record<LotteryRowKey | 'NONE', string> = (() => {
+  const out = { NONE: 'ハズレ' } as Record<LotteryRowKey | 'NONE', string>;
+  for (const key of ROW_KEYS) {
+    const r = ROW_RESULTS[key];
+    out[key] = r.bonus ? `${ROLES[r.bonus].label}${r.small ? `+${ROLES[r.small].label}` : '単独'}` : ROLES[r.small!].label;
   }
+  return out;
+})();
+
+/** テーブル内で、そのボーナスが当選する重みの合計（単独＋重複） */
+export function bonusWeightOf(table: LotteryTable, kind: BonusRole): number {
+  return bonusRowsOf(kind).reduce((a, k) => a + table.weights[k], 0);
+}
+
+/** テーブル内で、その小役が当選する重みの合計（単独＋ボーナス重複） */
+export function smallWeightOf(table: LotteryTable, role: SmallRole): number {
+  return ROW_KEYS.reduce((a, k) => a + (ROW_RESULTS[k].small === role ? table.weights[k] : 0), 0);
 }
 
 /** 乱数値（0〜denom-1）から行を決める（純粋関数・テストしやすい） */
@@ -93,7 +104,7 @@ export function toActiveFlags(lottery: LotteryResult, carriedBonus: BonusRole | 
 
 /**
  * 小役優先かどうか。
- * 小役（リプレイ含む）が当選しているゲームでは、ボーナス成立中でも小役を引き込む。
+ * 小役（リプレイ・リーチ目役含む）が当選しているゲームでは、ボーナス成立中でも小役を引き込む。
  * ボーナス図柄を揃えられるのは小役なし（ハズレ）のゲームだけ。
  */
 export function smallHasPriority(flags: ActiveFlags): boolean {
@@ -104,7 +115,3 @@ export function smallHasPriority(flags: ActiveFlags): boolean {
 export function canAlignBonus(flags: ActiveFlags): flags is ActiveFlags & { bonus: BonusRole } {
   return flags.bonus !== null && !smallHasPriority(flags);
 }
-
-/** 役名の一覧（表示用） */
-export const SMALL_ROLES: readonly SmallRole[] = ['BELL', 'MELON', 'CHERRY', 'REPLAY'];
-export const BONUS_ROLES: readonly BonusRole[] = ['BIG', 'REG'];

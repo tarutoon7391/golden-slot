@@ -18,7 +18,7 @@ import type { ReachmePattern } from '../shared/types.ts';
  *     null,                               // 右: 見ない（2 リール時点で成立するリーチ目）
  *   ],
  *   usage: 'both',                        // 'both'(既定) / 'preferOnly' / 'excludeOnly'
- *   bonus: ['BIG', 'REG'],                // 省略時は両方
+ *   bonus: ['BIG7', 'REG'],               // 省略時は全ボーナス（BIG7 / BIGG / REG）
  * },
  *
  * デバッグモード（?debug=1）の「出目をコピー」ボタンで、今の出目をこの形式で取得できる。

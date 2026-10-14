@@ -1,7 +1,7 @@
 import type { BonusRole, GameMode, LineDef, LineHit, LineId, PayoutResult, SmallRole, WinPattern, Window } from '../shared/types.ts';
 import { LINES } from '../config/lines.ts';
 import { REELS } from '../config/reels.ts';
-import { MAX_PAYOUT_PER_GAME, ROLES, WIN_PATTERNS } from '../config/roles.ts';
+import { MAX_PAYOUT_PER_GAME, ROLES, WIN_PATTERNS, isBonusRole } from '../config/roles.ts';
 import type { PartialWindow } from '../reel/window.ts';
 
 /** 払い出しのある役（小役＋ボーナス） */
@@ -42,6 +42,23 @@ export function matchLeftReel(pattern: WinPattern, window: PartialWindow): Match
   return rows.some((r) => allowed.includes(rw[r])) ? 'hit' : 'miss';
 }
 
+/** 窓全体を見る入賞形（リーチ目役など）の状態 */
+export function matchWindow(pattern: WinPattern, window: PartialWindow): MatchState {
+  const cells = pattern.cells;
+  if (!cells) return 'miss';
+  let open = false;
+  for (const reel of [0, 1, 2] as const) {
+    const rw = window[reel];
+    const want = cells[reel];
+    if (rw === null) {
+      if (want.some((c) => c !== '*')) open = true;
+      continue;
+    }
+    if (!want.every((c, row) => c === '*' || c === rw[row])) return 'miss';
+  }
+  return open ? 'open' : 'hit';
+}
+
 /** 入賞形 × ライン の照合結果 */
 export interface PatternMatch {
   pattern: WinPattern;
@@ -57,12 +74,13 @@ export interface PatternMatch {
 export function matchAll(window: PartialWindow, patterns: readonly WinPattern[] = WIN_PATTERNS): PatternMatch[] {
   const out: PatternMatch[] = [];
   for (const pattern of patterns) {
-    if (pattern.scope === 'leftReel') {
-      const state = matchLeftReel(pattern, window);
+    if (pattern.scope === 'leftReel' || pattern.scope === 'window') {
+      const state = pattern.scope === 'leftReel' ? matchLeftReel(pattern, window) : matchWindow(pattern, window);
       if (state !== 'miss') out.push({ pattern, line: null, state });
       continue;
     }
     for (const line of LINES) {
+      if (pattern.lines && !pattern.lines.includes(line.id)) continue;
       const state = matchLine(pattern, window, line);
       if (state !== 'miss') out.push({ pattern, line: line.id, state });
     }
@@ -89,7 +107,7 @@ export function judgeWindow(window: Window, mode: GameMode): PayoutResult {
       payout: payoutOf(m.pattern, mode),
     }));
   const sum = hits.reduce((a, h) => a + h.payout, 0);
-  const bonus = hits.find((h) => h.role === 'BIG' || h.role === 'REG');
+  const bonus = hits.find((h) => isBonusRole(h.role));
   return {
     hits,
     totalPayout: Math.min(sum, MAX_PAYOUT_PER_GAME),

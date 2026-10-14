@@ -3,7 +3,6 @@ import type {
   PayoutResult,
   Counters,
   EffectPlan,
-  GameMode,
   GameState,
   KomaNo,
   LotteryResult,
@@ -13,7 +12,7 @@ import type {
   StopResult,
 } from '../shared/types.ts';
 import { MACHINE } from '../config/machine.ts';
-import { BONUS_SPECS } from '../config/roles.ts';
+import { BONUS_SPECS, isBigBonus, isBonusRole } from '../config/roles.ts';
 import { normalizeKoma } from '../config/reels.ts';
 import { judgeWindow } from '../payout/judge.ts';
 import { buildWindow } from '../reel/window.ts';
@@ -64,7 +63,7 @@ export function emptyCounters(): Counters {
     diffSeries: [0],
     diffStep: 1,
     normalGames: 0,
-    smallCounts: { BELL: 0, MELON: 0, CHERRY: 0, REPLAY: 0 },
+    smallCounts: { BELL: 0, MELON: 0, CHERRY: 0, REPLAY: 0, REACH_A: 0, REACH_B: 0 },
   };
 }
 
@@ -123,10 +122,6 @@ export function pushKomaAt(s: GameState, reel: ReelIndex, now: number): KomaNo {
 export function payoutDelayMs(payout: PayoutResult | null): number {
   const n = payout?.totalPayout ?? 0;
   return MACHINE.payoutBaseMs + n * MACHINE.payoutPerCoinMs;
-}
-
-function bonusKindOf(mode: GameMode): BonusRole | null {
-  return mode === 'big' ? 'BIG' : mode === 'reg' ? 'REG' : null;
 }
 
 /** 差枚数の推移に 1 点足す。上限を超えたら間引いて記録間隔を倍にする */
@@ -193,7 +188,7 @@ function stop(s: GameState, a: Extract<GameAction, { type: 'STOP' }>): GameState
     ...next,
     phase: 'payout',
     payout,
-    effect: planResultEffect(s.effect, payout, s.mode),
+    effect: planResultEffect(s.effect, payout, s.bonus?.kind ?? null),
   };
 }
 
@@ -213,23 +208,23 @@ function settle(s: GameState): GameState {
     c.normalGames += 1;
     c.gamesSinceBonus += 1;
     for (const role of new Set(p.hits.map((h) => h.role))) {
-      if (role !== 'BIG' && role !== 'REG') c.smallCounts[role as SmallRole] += 1;
+      if (!isBonusRole(role)) c.smallCounts[role as SmallRole] += 1;
     }
     if (p.bonusHit) {
       // ボーナス図柄が揃った: 持ち越し解除・ボーナス開始・履歴に記録
       const kind = p.bonusHit;
-      if (kind === 'BIG') c.bigCount += 1;
+      if (isBigBonus(kind)) c.bigCount += 1;
       else c.regCount += 1;
       c.history.push({ kind, gamesSinceLast: c.gamesSinceBonus, totalGamesAt: c.totalGames, diffAt: diffOf(c) });
       if (c.history.length > MACHINE.historyMax) c.history = c.history.slice(-MACHINE.historyMax);
       c.gamesSinceBonus = 0;
-      mode = kind === 'BIG' ? 'big' : 'reg';
+      mode = isBigBonus(kind) ? 'big' : 'reg';
       bonus = { kind, paidOut: 0 };
       carried = null;
     }
   } else {
     // ボーナス中: 規定枚数を超えたら終了
-    const kind = bonusKindOf(mode)!;
+    const kind = bonus!.kind;
     const paidOut = (bonus?.paidOut ?? 0) + p.totalPayout;
     bonus = { kind, paidOut };
     if (paidOut >= BONUS_SPECS[kind].maxPayout) {

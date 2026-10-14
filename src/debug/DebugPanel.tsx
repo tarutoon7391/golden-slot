@@ -6,6 +6,7 @@ import { ROLES } from '../config/roles.ts';
 import { SYMBOLS } from '../config/symbols.ts';
 import { REACHME } from '../config/reachme.ts';
 import { ALL_SETTINGS } from '../lottery/setting.ts';
+import { BONUS_ROLES, ROW_KEYS, ROW_LABELS, SMALL_ROLES, rowToResult } from '../lottery/lottery.ts';
 import { STOP_RULES } from '../reel/rules.ts';
 import { findReachme, formatAsReachme, matchReachme } from '../reel/reachme.ts';
 import { buildPartialWindow } from '../reel/window.ts';
@@ -33,23 +34,10 @@ interface Props {
   debug: DebugControl;
 }
 
-const FORCE_KEYS: readonly ForceKey[] = ['NONE', 'BELL', 'MELON', 'CHERRY', 'REPLAY', 'BIG', 'REG', 'BIG_CHERRY', 'BIG_MELON', 'REG_CHERRY', 'REG_MELON'];
-const FORCE_LABEL: Record<ForceKey, string> = {
-  NONE: 'ハズレ',
-  BELL: 'ベル',
-  MELON: 'スイカ',
-  CHERRY: 'チェリー',
-  REPLAY: 'リプレイ',
-  BIG: 'BIG',
-  REG: 'REG',
-  BIG_CHERRY: 'BIG + チェリー',
-  BIG_MELON: 'BIG + スイカ',
-  REG_CHERRY: 'REG + チェリー',
-  REG_MELON: 'REG + スイカ',
-};
+const FORCE_KEYS: readonly ForceKey[] = ['NONE', ...ROW_KEYS];
+const FORCE_LABEL: Record<ForceKey, string> = ROW_LABELS;
 const REEL_NAME = ['左', '中', '右'] as const;
 const VERDICT_MARK = { accept: '○', reject: '×', neutral: '−' } as const;
-const SMALL_ROLES: readonly SmallRole[] = ['BELL', 'MELON', 'CHERRY', 'REPLAY'];
 const PUSH_MODE_LABEL: Record<PushMode, string> = { aim: '目押しあり', random: 'ランダム押し', fixed: '固定押し' };
 
 /** 入力欄の整数を読む（空や範囲外は null） */
@@ -377,26 +365,18 @@ interface SimPair {
   theory: SimResult;
 }
 
+/** 理論値側: その小役が当選した行（単独＋重複）の合計 */
 function smallDrawnTheory(t: SimResult, role: SmallRole): number {
-  const r = t.rowCounts;
-  switch (role) {
-    case 'BELL':
-      return r.BELL;
-    case 'MELON':
-      return r.MELON + r.BIG_MELON + r.REG_MELON;
-    case 'CHERRY':
-      return r.CHERRY + r.BIG_CHERRY + r.REG_CHERRY;
-    case 'REPLAY':
-      return r.REPLAY;
-  }
+  return ROW_KEYS.reduce((a, k) => a + (rowToResult(k).small === role ? t.rowCounts[k] : 0), 0);
 }
 
 function simRows({ control: c, theory: t }: SimPair): [string, string, string][] {
   const cg = c.normalGames;
   const tg = t.normalGames;
   const avg = (sum: number, n: number) => (n === 0 ? '-' : (sum / n).toFixed(1));
-  const bonusDrawn = c.bonusDrawn.BIG + c.bonusDrawn.REG;
-  const theoryBonusDrawn = t.rowCounts.BIG + t.rowCounts.BIG_CHERRY + t.rowCounts.BIG_MELON + t.rowCounts.REG + t.rowCounts.REG_CHERRY + t.rowCounts.REG_MELON;
+  const bonusDrawn = BONUS_ROLES.reduce((a, k) => a + c.bonusDrawn[k], 0);
+  const theoryBonusDrawn = ROW_KEYS.reduce((a, k) => a + (rowToResult(k).bonus ? t.rowCounts[k] : 0), 0);
+  const bonusCount = (kind: BonusRole, r: { bigCount: number; regCount: number }) => (kind === 'REG' ? r.regCount : r.bigCount);
   return [
     ['機械割', `${controlPayoutRate(c).toFixed(2)} %`, `${payoutRate(t).toFixed(2)} %`],
     ['総ゲーム数（ボーナス中込み）', c.totalGames.toLocaleString(), t.totalGames.toLocaleString()],
@@ -407,7 +387,8 @@ function simRows({ control: c, theory: t }: SimPair): [string, string, string][]
     ['成立 → 入賞までの平均 G', avg(c.bonusWaitGames, c.bigCount + c.regCount), '（ハズレ時に即揃う前提）'],
     ...SMALL_ROLES.map((role): [string, string, string] => [`${ROLES[role].label} 入賞`, oneIn(cg, c.won[role]), `${oneIn(tg, smallDrawnTheory(t, role))}（当選＝入賞）`]),
     ['取りこぼし', SMALL_ROLES.map((r) => `${ROLES[r].label} ${c.lost[r]}`).join(' / '), '0（前提）'],
-    ['BIG 平均枚数', avg(c.bonusPayout.BIG, c.bigCount), avg(t.bonusPayout.BIG, t.bigCount)],
+    ...BONUS_ROLES.map((k): [string, string, string] => [`${ROLES[k].label} 払出合計 / 消化G`, `${c.bonusPayout[k]} / ${c.bonusGames[k]}`, `${t.bonusPayout[k]} / ${t.bonusGames[k]}`]),
+    ['BIG 平均枚数（7・G 合算）', avg(c.bonusPayout.BIG7 + c.bonusPayout.BIGG, bonusCount('BIG7', c)), avg(t.bonusPayout.BIG7 + t.bonusPayout.BIGG, bonusCount('BIG7', t))],
     ['REG 平均枚数', avg(c.bonusPayout.REG, c.regCount), avg(t.bonusPayout.REG, t.regCount)],
     ['投入 / 払出', `${c.coinsIn.toLocaleString()} / ${c.coinsOut.toLocaleString()}`, `${t.coinsIn.toLocaleString()} / ${t.coinsOut.toLocaleString()}`],
   ];

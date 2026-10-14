@@ -31,8 +31,8 @@ describe('デバッグ設定 → GameOverrides', () => {
 
   it('当選役の強制は 1 ゲームで解除される（forceEvery が false）', () => {
     let consumed = 0;
-    const o = buildOverrides({ ...DEFAULT_DEBUG_SETTINGS, forceKey: 'BIG_CHERRY' }, () => consumed++);
-    expect(o.nextLottery!(state)).toEqual({ small: 'CHERRY', bonus: 'BIG' });
+    const o = buildOverrides({ ...DEFAULT_DEBUG_SETTINGS, forceKey: 'BIG7_CHERRY' }, () => consumed++);
+    expect(o.nextLottery!(state)).toEqual({ small: 'CHERRY', bonus: 'BIG7' });
     expect(consumed).toBe(1);
   });
 
@@ -117,7 +117,7 @@ describe('制御込みシミュレーション', () => {
 
   it('目押しあり: すべての小役を取りこぼさず、ボーナスは成立したゲームか次のハズレで揃う', () => {
     const r = simulateWithControl({ setting: 6, games: 5000, seed: 3, pushMode: 'aim' });
-    expect(r.lost).toEqual({ BELL: 0, MELON: 0, CHERRY: 0, REPLAY: 0 });
+    expect(r.lost).toEqual({ BELL: 0, MELON: 0, CHERRY: 0, REPLAY: 0, REACH_A: 0, REACH_B: 0 });
     const bonus = r.bigCount + r.regCount;
     expect(bonus).toBeGreaterThan(0);
     // 成立ゲームを含めた平均消化 G は小役を引かない限り 1〜2 程度
@@ -129,7 +129,7 @@ describe('制御込みシミュレーション', () => {
     const r = simulateWithControl({ setting: 6, games: 5000, seed: 3, pushMode: 'fixed', fixedPushes });
     expect(r.lost.BELL + r.lost.MELON + r.lost.REPLAY + r.lost.CHERRY).toBe(0);
     // 当選したボーナスは終了時点で持ち越し中の 1 件を除いてすべて入賞している
-    const drawn = r.bonusDrawn.BIG + r.bonusDrawn.REG;
+    const drawn = r.bonusDrawn.BIG7 + r.bonusDrawn.BIGG + r.bonusDrawn.REG;
     expect(r.bigCount + r.regCount).toBeLessThanOrEqual(drawn);
     expect(r.bigCount + r.regCount).toBeGreaterThanOrEqual(drawn - 1);
     expect(r.bonusWaitGames).toBeGreaterThanOrEqual(r.bigCount + r.regCount);

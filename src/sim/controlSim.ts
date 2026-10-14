@@ -1,7 +1,7 @@
 import type { ActiveFlags, BonusRole, GameMode, KomaNo, ReelIndex, Setting, SmallRole, StopPositions } from '../shared/types.ts';
 import { createRng } from '../shared/rng.ts';
 import { MACHINE } from '../config/machine.ts';
-import { BONUS_SPECS, patternsOf } from '../config/roles.ts';
+import { BONUS_ROLES, BONUS_SPECS, isBigBonus, patternsOf } from '../config/roles.ts';
 import { KOMA_COUNT } from '../config/reels.ts';
 import { tableFor } from '../config/probability.ts';
 import { applyCarry, drawLottery, toActiveFlags } from '../lottery/lottery.ts';
@@ -71,7 +71,8 @@ export interface ControlSim {
   step(n: number): boolean;
 }
 
-const zeroSmall = (): Record<SmallRole, number> => ({ BELL: 0, MELON: 0, CHERRY: 0, REPLAY: 0 });
+const zeroSmall = (): Record<SmallRole, number> => ({ BELL: 0, MELON: 0, CHERRY: 0, REPLAY: 0, REACH_A: 0, REACH_B: 0 });
+const zeroBonus = (): Record<BonusRole, number> => Object.fromEntries(BONUS_ROLES.map((k) => [k, 0])) as Record<BonusRole, number>;
 
 /** どこで押しても揃う役（狙う必要がない） */
 const NO_AIM_NEEDED = new Set(['BELL', 'REPLAY']);
@@ -124,14 +125,15 @@ export function createControlSim(opts: ControlSimOptions): ControlSim {
     drawn: zeroSmall(),
     won: zeroSmall(),
     lost: zeroSmall(),
-    bonusDrawn: { BIG: 0, REG: 0 },
+    bonusDrawn: zeroBonus(),
     bonusWaitGames: 0,
-    bonusPayout: { BIG: 0, REG: 0 },
-    bonusGames: { BIG: 0, REG: 0 },
+    bonusPayout: zeroBonus(),
+    bonusGames: zeroBonus(),
   };
 
   let mode: GameMode = 'normal';
   let carried: BonusRole | null = null;
+  let bonusKind: BonusRole = 'REG';
   let bonusPaid = 0;
   let replayNext = false;
   const bet = MACHINE.betPerGame;
@@ -174,14 +176,15 @@ export function createControlSim(opts: ControlSimOptions): ControlSim {
       }
       if (carried) result.bonusWaitGames++;
       if (payout.bonusHit) {
-        if (payout.bonusHit === 'BIG') result.bigCount++;
+        if (isBigBonus(payout.bonusHit)) result.bigCount++;
         else result.regCount++;
-        mode = payout.bonusHit === 'BIG' ? 'big' : 'reg';
+        bonusKind = payout.bonusHit;
+        mode = isBigBonus(payout.bonusHit) ? 'big' : 'reg';
         carried = null;
         bonusPaid = 0;
       }
     } else {
-      const kind: BonusRole = mode === 'big' ? 'BIG' : 'REG';
+      const kind = bonusKind;
       result.bonusGames[kind]++;
       result.bonusPayout[kind] += payout.totalPayout;
       bonusPaid += payout.totalPayout;

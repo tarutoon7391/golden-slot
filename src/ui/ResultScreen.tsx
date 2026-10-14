@@ -1,6 +1,7 @@
 import type { GameState } from '../shared/types.ts';
 import { MACHINE } from '../config/machine.ts';
 import { NORMAL_TABLES, oneOver } from '../config/probability.ts';
+import { bonusWeightOf } from '../lottery/lottery.ts';
 import { diffOf } from '../store/gameReducer.ts';
 import { estimateSetting, mostLikelySetting, oneIn } from '../store/estimate.ts';
 import { DataCounterDetail } from './DataCounter.tsx';
@@ -19,8 +20,8 @@ export function ResultScreen({ state, onNewGame }: Props) {
   const guess = mostLikelySetting(est);
   const diff = diffOf(c);
   const t = NORMAL_TABLES[state.setting];
-  const bigW = t.weights.BIG + t.weights.BIG_CHERRY + t.weights.BIG_MELON;
-  const regW = t.weights.REG + t.weights.REG_CHERRY + t.weights.REG_MELON;
+  const bigW = bonusWeightOf(t, 'BIG7') + bonusWeightOf(t, 'BIGG');
+  const regW = bonusWeightOf(t, 'REG');
 
   return (
     <div className="result">

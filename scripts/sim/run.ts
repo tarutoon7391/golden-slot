@@ -7,10 +7,10 @@
  *   npm run sim -- --games 1000000      ゲーム数を変える
  *   npm run sim -- --seed 42            シード指定
  */
-import type { LotteryRowKey, Setting } from '../../src/shared/types.ts';
-import { ROW_KEYS } from '../../src/lottery/lottery.ts';
+import type { Setting } from '../../src/shared/types.ts';
+import { ROW_KEYS, ROW_LABELS, bonusRowsOf } from '../../src/lottery/lottery.ts';
 import { ALL_SETTINGS } from '../../src/lottery/setting.ts';
-import { BONUS_SPECS } from '../../src/config/roles.ts';
+import { BIG_KINDS, BONUS_ROLES, BONUS_SPECS, ROLES, isBigBonus } from '../../src/config/roles.ts';
 import { oneIn, payoutRate, simulate, type SimResult } from '../../src/sim/simulate.ts';
 
 function arg(name: string, fallback: string): string {
@@ -23,19 +23,6 @@ const seed = Number(arg('seed', '1'));
 const settingArg = arg('setting', 'all');
 const settings: Setting[] = settingArg === 'all' ? [...ALL_SETTINGS] : [Number(settingArg) as Setting];
 
-const ROW_LABEL: Record<LotteryRowKey | 'NONE', string> = {
-  BIG: 'BIG単独',
-  BIG_CHERRY: 'BIG+チェリー',
-  BIG_MELON: 'BIG+スイカ',
-  REG: 'REG単独',
-  REG_CHERRY: 'REG+チェリー',
-  REG_MELON: 'REG+スイカ',
-  BELL: 'ベル',
-  MELON: 'スイカ',
-  CHERRY: 'チェリー',
-  REPLAY: 'リプレイ',
-  NONE: 'ハズレ',
-};
 
 function printDetail(r: SimResult): void {
   const g = r.normalGames;
@@ -43,19 +30,22 @@ function printDetail(r: SimResult): void {
   console.log('  役                 回数        確率');
   for (const k of [...ROW_KEYS, 'NONE'] as const) {
     const c = r.rowCounts[k];
-    console.log(`  ${ROW_LABEL[k].padEnd(12, '　')} ${String(c).padStart(10)}  ${oneIn(g, c)}`);
+    console.log(`  ${ROW_LABELS[k].padEnd(14, '　')} ${String(c).padStart(10)}  ${oneIn(g, c)}`);
   }
-  const bigAll = r.rowCounts.BIG + r.rowCounts.BIG_CHERRY + r.rowCounts.BIG_MELON;
-  const regAll = r.rowCounts.REG + r.rowCounts.REG_CHERRY + r.rowCounts.REG_MELON;
+  const sumRows = (kinds: readonly typeof BONUS_ROLES[number][]) => kinds.flatMap(bonusRowsOf).reduce((a, k) => a + r.rowCounts[k], 0);
+  const bigAll = sumRows(BIG_KINDS);
+  const regAll = sumRows(['REG']);
   console.log(`  BIG 合算(抽選)      ${String(bigAll).padStart(10)}  ${oneIn(g, bigAll)}`);
   console.log(`  REG 合算(抽選)      ${String(regAll).padStart(10)}  ${oneIn(g, regAll)}`);
   console.log(`  BIG 入賞            ${String(r.bigCount).padStart(10)}  ${oneIn(g, r.bigCount)}`);
   console.log(`  REG 入賞            ${String(r.regCount).padStart(10)}  ${oneIn(g, r.regCount)}`);
   console.log(`  ボーナス合算(入賞)  ${String(r.bigCount + r.regCount).padStart(10)}  ${oneIn(g, r.bigCount + r.regCount)}`);
-  const avg = (k: 'BIG' | 'REG') => (r.bonusGames[k] === 0 ? 0 : r.bonusPayout[k] / (k === 'BIG' ? r.bigCount : r.regCount));
-  const avgG = (k: 'BIG' | 'REG') => (k === 'BIG' ? r.bonusGames.BIG / Math.max(1, r.bigCount) : r.bonusGames.REG / Math.max(1, r.regCount));
-  console.log(`  BIG 平均 ${avg('BIG').toFixed(1)} 枚 / ${avgG('BIG').toFixed(1)} G（規定 ${BONUS_SPECS.BIG.maxPayout}）`);
-  console.log(`  REG 平均 ${avg('REG').toFixed(1)} 枚 / ${avgG('REG').toFixed(1)} G（規定 ${BONUS_SPECS.REG.maxPayout}）`);
+  // 種別ごとの平均枚数・平均ゲーム数（入賞回数は rowCounts から出せないので、払い出しとゲーム数の比で近似）
+  for (const k of BONUS_ROLES) {
+    const games = r.bonusGames[k];
+    const count = isBigBonus(k) ? r.bigCount : r.regCount;
+    console.log(`  ${ROLES[k].label.padEnd(5)} 払出合計 ${r.bonusPayout[k]} 枚 / ${games} G（規定 ${BONUS_SPECS[k].maxPayout}・${isBigBonus(k) ? 'BIG' : 'REG'} 入賞 ${count} 回）`);
+  }
   console.log(`  投入 ${r.coinsIn.toLocaleString()} 枚 / 払出 ${r.coinsOut.toLocaleString()} 枚`);
   console.log(`  機械割 ${payoutRate(r).toFixed(2)} %`);
 }

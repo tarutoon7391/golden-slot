@@ -137,15 +137,15 @@ describe('ゲーム進行（reducer）', () => {
     const gMid = komaListOf(1, 'g')[0];
     const gRight = komaListOf(2, 'g')[0];
     let s = playGame(base, { small: null, bonus: null }, [1, 1, 1], 1000); // 1 G 目: ハズレ
-    s = playGame(s, { small: null, bonus: 'BIG' }, [gLeft - 2, gMid - 2, gRight - 2], 20000); // 2 G 目: BIG 当選・G 狙い
-    expect(s.payout?.bonusHit).toBe('BIG');
+    s = playGame(s, { small: null, bonus: 'BIGG' }, [gLeft - 2, gMid - 2, gRight - 2], 20000); // 2 G 目: BIG 当選・G 狙い
+    expect(s.payout?.bonusHit).toBe('BIGG');
     expect(s.mode).toBe('big');
-    expect(s.bonus).toEqual({ kind: 'BIG', paidOut: 0 });
+    expect(s.bonus).toEqual({ kind: 'BIGG', paidOut: 0 });
     expect(s.carriedBonus).toBeNull();
     expect(s.counters.bigCount).toBe(1);
     expect(s.counters.gamesSinceBonus).toBe(0);
     expect(s.counters.history).toHaveLength(1);
-    expect(s.counters.history[0]).toMatchObject({ kind: 'BIG', gamesSinceLast: 2, totalGamesAt: 2 });
+    expect(s.counters.history[0]).toMatchObject({ kind: 'BIGG', gamesSinceLast: 2, totalGamesAt: 2 });
     expect(s.effect?.bgm).toBe('big');
   });
 
@@ -155,12 +155,12 @@ describe('ゲーム進行（reducer）', () => {
     expect(s.carriedBonus).toBe('REG');
     expect(s.mode).toBe('normal');
     // 持ち越し中に新たな BIG を引いても捨てる
-    s = playGame(s, { small: null, bonus: 'BIG' }, [1, 1, 1], 20000);
+    s = playGame(s, { small: null, bonus: 'BIGG' }, [1, 1, 1], 20000);
     expect(s.carriedBonus).toBe('REG');
   });
 
   it('ボーナス中: ベルは 15 枚。規定枚数に達したら通常に戻る', () => {
-    const bigStart: GameState = { ...base, mode: 'big', bonus: { kind: 'BIG', paidOut: 0 }, effect: { ...NO_EFFECT, bgm: 'big' } };
+    const bigStart: GameState = { ...base, mode: 'big', bonus: { kind: 'BIGG', paidOut: 0 }, effect: { ...NO_EFFECT, bgm: 'big' } };
     let s = bigStart;
     let games = 0;
     while (s.mode === 'big') {
@@ -169,7 +169,7 @@ describe('ゲーム進行（reducer）', () => {
       expect(s.payout?.totalPayout).toBe(15);
       if (games > 100) throw new Error('ボーナスが終わらない');
     }
-    expect(games).toBe(Math.ceil(BONUS_SPECS.BIG.maxPayout / 15));
+    expect(games).toBe(Math.ceil(BONUS_SPECS.BIGG.maxPayout / 15));
     expect(s.bonus).toBeNull();
     expect(s.effect?.bgm).toBe('none');
     // ボーナス中は通常時ゲーム数・ボーナス間回転数に数えない

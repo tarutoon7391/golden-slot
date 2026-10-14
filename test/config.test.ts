@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { LINES } from '../src/config/lines.ts';
 import { MAX_PAYOUT_PER_GAME, ROLES, WIN_PATTERNS, BONUS_SPECS, patternsOf } from '../src/config/roles.ts';
-import { NORMAL_TABLES, BONUS_TABLE, SETTING_WEIGHTS, tableFor } from '../src/config/probability.ts';
+import { NORMAL_TABLES, BONUS_TABLE, BONUS_TOTAL, SETTING_WEIGHTS, tableFor } from '../src/config/probability.ts';
 import { REACHME } from '../src/config/reachme.ts';
 import { EFFECTS } from '../src/config/effects.ts';
 import { SYMBOLS, SYMBOL_IDS } from '../src/config/symbols.ts';
-import type { LotteryRowKey, LotteryTable, Setting } from '../src/shared/types.ts';
+import type { LotteryTable, Setting } from '../src/shared/types.ts';
+import { ROW_KEYS, bonusWeightOf } from '../src/lottery/lottery.ts';
 
 const SETTINGS: Setting[] = [1, 2, 3, 4, 5, 6];
 
@@ -13,8 +14,7 @@ function sumWeights(t: LotteryTable): number {
   return Object.values(t.weights).reduce((a, b) => a + b, 0);
 }
 function bonusWeight(t: LotteryTable, kind: 'BIG' | 'REG'): number {
-  const keys: LotteryRowKey[] = kind === 'BIG' ? ['BIG', 'BIG_CHERRY', 'BIG_MELON'] : ['REG', 'REG_CHERRY', 'REG_MELON'];
-  return keys.reduce((a, k) => a + t.weights[k], 0);
+  return kind === 'BIG' ? bonusWeightOf(t, 'BIG7') + bonusWeightOf(t, 'BIGG') : bonusWeightOf(t, 'REG');
 }
 
 describe('有効ライン', () => {
@@ -33,10 +33,23 @@ describe('役・入賞形', () => {
     }
   });
 
-  it('BIG は G 揃いと赤7 揃いの 2 形、REG は 赤7・赤7・BAR の 1 形（BAR 揃いは無い）', () => {
-    expect(patternsOf('BIG').map((p) => p.id).sort()).toEqual(['BIG_G', 'BIG_SEVEN']);
+  it('BIG7 は赤7 揃い、BIGG は G 揃い、REG は 赤7・赤7・BAR（下段・右上がり・右下がりのみ）', () => {
+    expect(patternsOf('BIG7').map((p) => p.id)).toEqual(['BIG7_SEVEN']);
+    expect(patternsOf('BIGG').map((p) => p.id)).toEqual(['BIGG_G']);
     expect(patternsOf('REG').map((p) => p.id)).toEqual(['REG_77BAR']);
     expect(patternsOf('REG')[0].symbols).toEqual([['seven'], ['seven'], ['bar']]);
+    expect([...patternsOf('REG')[0].lines!].sort()).toEqual(['bottom', 'downRight', 'upRight']);
+  });
+
+  it('リーチ目役は配当 0 の小役。A は上段 BAR 揃い（窓全体）、B は左中段チェリー', () => {
+    expect(ROLES.REACH_A.payout).toBe(0);
+    expect(ROLES.REACH_B.payout).toBe(0);
+    const a = patternsOf('REACH_A')[0];
+    expect(a.scope).toBe('window');
+    expect(a.cells!.map((c) => c[0])).toEqual(['bar', 'bar', 'bar']);
+    const b = patternsOf('REACH_B')[0];
+    expect(b.scope).toBe('leftReel');
+    expect(b.leftRows).toEqual([1]);
   });
 
   it('スイカは 3 つ揃いと代用（左スイカ・中スイカ・右BAR）の 2 形', () => {
@@ -46,11 +59,11 @@ describe('役・入賞形', () => {
     expect(bar.symbols).toEqual([['melon'], ['melon'], ['bar']]);
   });
 
-  it('チェリーは左リールだけを見る。角と中段で段が分かれている', () => {
+  it('チェリーは左リールの角（上段・下段）だけ。中段は入賞しない', () => {
     const cherries = patternsOf('CHERRY');
     expect(cherries.every((p) => p.scope === 'leftReel')).toBe(true);
     const rows = cherries.flatMap((p) => p.leftRows ?? []).sort();
-    expect(rows).toEqual([0, 1, 2]);
+    expect(rows).toEqual([0, 2]);
   });
 
   it('払い出しは 1 ゲーム上限以下', () => {
@@ -65,8 +78,9 @@ describe('役・入賞形', () => {
     expect(Object.values(ROLES).filter((r) => r.isReplay).map((r) => r.role)).toEqual(['REPLAY']);
   });
 
-  it('ボーナスの規定枚数は BIG > REG', () => {
-    expect(BONUS_SPECS.BIG.maxPayout).toBeGreaterThan(BONUS_SPECS.REG.maxPayout);
+  it('ボーナスの規定枚数は BIG7 = BIGG > REG', () => {
+    expect(BONUS_SPECS.BIG7.maxPayout).toBe(BONUS_SPECS.BIGG.maxPayout);
+    expect(BONUS_SPECS.BIG7.maxPayout).toBeGreaterThan(BONUS_SPECS.REG.maxPayout);
   });
 });
 
@@ -86,13 +100,26 @@ describe('確率テーブル', () => {
     }
   });
 
-  it('BIG・REG・ベルの確率は設定が上がるほど高い（単調増加）', () => {
+  it('BIG7 は設定差なし。BIGG・REG・ベルは設定が上がるほど高い', () => {
     for (let i = 1; i < SETTINGS.length; i++) {
       const lo = NORMAL_TABLES[SETTINGS[i - 1]];
       const hi = NORMAL_TABLES[SETTINGS[i]];
-      expect(bonusWeight(hi, 'BIG')).toBeGreaterThan(bonusWeight(lo, 'BIG'));
-      expect(bonusWeight(hi, 'REG')).toBeGreaterThan(bonusWeight(lo, 'REG'));
+      expect(bonusWeightOf(hi, 'BIG7')).toBe(bonusWeightOf(lo, 'BIG7'));
+      expect(bonusWeightOf(hi, 'BIGG')).toBeGreaterThan(bonusWeightOf(lo, 'BIGG'));
+      expect(bonusWeightOf(hi, 'REG')).toBeGreaterThan(bonusWeightOf(lo, 'REG'));
       expect(hi.weights.BELL).toBeGreaterThanOrEqual(lo.weights.BELL);
+    }
+  });
+
+  it('各ボーナスの行の合計は BONUS_TOTAL どおり。リーチ目役はボーナス重複行にだけある', () => {
+    for (const s of SETTINGS) {
+      const t = NORMAL_TABLES[s];
+      for (const k of ['BIG7', 'BIGG', 'REG'] as const) {
+        expect(bonusWeightOf(t, k)).toBe(BONUS_TOTAL[k][s]);
+        expect(t.weights[`${k}_REACH_A`]).toBeGreaterThan(0);
+        expect(t.weights[`${k}_REACH_B`]).toBeGreaterThan(0);
+      }
+      expect(Object.keys(t.weights).sort()).toEqual([...ROW_KEYS].sort());
     }
   });
 

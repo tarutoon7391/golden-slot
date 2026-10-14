@@ -18,5 +18,5 @@ export const EFFECTS: EffectTable = {
   // ボーナス図柄が揃った瞬間のフラッシュ（1 パターン）
   bonusConfirmFlash: 'bonusConfirm',
   // ボーナス中 BGM
-  bgm: { BIG: 'big', REG: 'reg' },
+  bgm: { BIG7: 'big', BIGG: 'big', REG: 'reg' },
 };

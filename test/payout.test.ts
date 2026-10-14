@@ -38,13 +38,14 @@ describe('払い出し判定', () => {
     expect(r.hits).toEqual([{ patternId: 'MELON_BAR', role: 'MELON', line: 'middle', payout: 15 }]);
   });
 
-  it('角チェリー（上段・下段）は 4 枚、中段チェリーは 2 枚。中・右は問わない', () => {
+  it('角チェリー（上段・下段）は 4 枚。中段チェリーは入賞しない（リーチ目役B の形）。中・右は問わない', () => {
     const top = judgeWindow(W(['cherry', 'g', 'bell'], ['bell', 'melon', 'cherry'], ['replay', 'g', 'bell']), 'normal');
     expect(top.hits).toEqual([{ patternId: 'CHERRY_CORNER', role: 'CHERRY', line: null, payout: 4 }]);
     const bottom = judgeWindow(W(['g', 'bell', 'cherry'], ['bell', 'melon', 'cherry'], ['replay', 'g', 'bell']), 'normal');
     expect(bottom.totalPayout).toBe(4);
     const mid = judgeWindow(W(['g', 'cherry', 'bell'], ['bell', 'melon', 'cherry'], ['replay', 'g', 'bell']), 'normal');
-    expect(mid.hits).toEqual([{ patternId: 'CHERRY_MIDDLE', role: 'CHERRY', line: null, payout: 2 }]);
+    expect(mid.hits).toEqual([{ patternId: 'REACH_B_CHERRY_MID', role: 'REACH_B', line: null, payout: 0 }]);
+    expect(mid.totalPayout).toBe(0);
   });
 
   it('中・右リールだけのチェリーは入賞しない', () => {
@@ -52,18 +53,29 @@ describe('払い出し判定', () => {
     expect(r.hits).toEqual([]);
   });
 
-  it('G 揃い・赤7 揃いは BIG、赤7・赤7・BAR は REG。BAR 揃いは何も入賞しない', () => {
+  it('G 揃いは BIGG、赤7 揃いは BIG7、赤7・赤7・BAR は REG。BAR 揃いは何も入賞しない', () => {
     const g = judgeWindow(W(['g', 'bell', 'replay'], ['bell', 'g', 'cherry'], ['replay', 'bell', 'g']), 'normal');
-    expect(g.bonusHit).toBe('BIG');
-    expect(g.hits[0].patternId).toBe('BIG_G');
+    expect(g.bonusHit).toBe('BIGG');
+    expect(g.hits[0].patternId).toBe('BIGG_G');
     expect(g.hits[0].line).toBe('downRight');
     const seven = judgeWindow(W(['seven', 'bell', 'replay'], ['seven', 'g', 'cherry'], ['seven', 'bell', 'g']), 'normal');
-    expect(seven.bonusHit).toBe('BIG');
-    expect(seven.hits[0].patternId).toBe('BIG_SEVEN');
-    const reg = judgeWindow(W(['seven', 'bell', 'replay'], ['seven', 'g', 'cherry'], ['bar', 'bell', 'g']), 'normal');
+    expect(seven.bonusHit).toBe('BIG7');
+    expect(seven.hits[0].patternId).toBe('BIG7_SEVEN');
+    // 下段の 7・7・BAR は REG
+    const reg = judgeWindow(W(['g', 'bell', 'seven'], ['bell', 'g', 'seven'], ['g', 'bell', 'bar']), 'normal');
     expect(reg.bonusHit).toBe('REG');
     expect(reg.hits[0].patternId).toBe('REG_77BAR');
+    expect(reg.hits[0].line).toBe('bottom');
     expect(reg.totalPayout).toBe(0);
+    // 上段・中段の 7・7・BAR は無効（配列上リプレイが同時に揃うため）
+    const regTop = judgeWindow(W(['seven', 'bell', 'replay'], ['seven', 'g', 'cherry'], ['bar', 'bell', 'g']), 'normal');
+    expect(regTop.bonusHit).toBeNull();
+    const regMid = judgeWindow(W(['g', 'seven', 'bell'], ['bell', 'seven', 'g'], ['g', 'bar', 'bell']), 'normal');
+    expect(regMid.bonusHit).toBeNull();
+    // 右下がりは有効
+    const regDiag = judgeWindow(W(['seven', 'bell', 'g'], ['bell', 'seven', 'g'], ['g', 'bell', 'bar']), 'normal');
+    expect(regDiag.bonusHit).toBe('REG');
+    expect(regDiag.hits[0].line).toBe('downRight');
     const bar = judgeWindow(W(['g', 'bell', 'bar'], ['bell', 'bar', 'cherry'], ['bar', 'bell', 'g']), 'normal');
     expect(bar.bonusHit).toBeNull();
     expect(bar.hits).toEqual([]);
@@ -89,7 +101,7 @@ describe('払い出し判定', () => {
     expect(states.every((s) => s === 'open')).toBe(true);
     // 左にベル・リプレイ・G があるので、その 3 役の入賞形が open
     const roles = new Set(matchAll(partial as never).map((m) => m.pattern.role));
-    expect([...roles].sort()).toEqual(['BELL', 'BIG', 'REPLAY']);
+    expect([...roles].sort()).toEqual(['BELL', 'BIGG', 'REPLAY']);
   });
 
   it('実配列から作った窓でも判定できる（左21・中21・右21 を中段）', () => {

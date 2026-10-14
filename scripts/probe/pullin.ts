@@ -13,9 +13,12 @@ const flagsList = [
   ['REPLAY', { small: 'REPLAY', bonus: null }],
   ['MELON', { small: 'MELON', bonus: null }],
   ['CHERRY', { small: 'CHERRY', bonus: null }],
-  ['BIG', { small: null, bonus: 'BIG' }],
+  ['REACH_A', { small: 'REACH_A', bonus: 'BIG7' }],
+  ['REACH_B', { small: 'REACH_B', bonus: 'BIGG' }],
+  ['BIG7', { small: null, bonus: 'BIG7' }],
+  ['BIGG', { small: null, bonus: 'BIGG' }],
   ['REG', { small: null, bonus: 'REG' }],
-  ['BELL+BIG', { small: 'BELL', bonus: 'BIG' }],
+  ['BELL+BIG7', { small: 'BELL', bonus: 'BIG7' }],
   ['CHERRY+REG', { small: 'CHERRY', bonus: 'REG' }],
 ] as const;
 for (const [name, flags] of flagsList) {

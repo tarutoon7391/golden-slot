@@ -1,5 +1,6 @@
 import type { Counters } from '../shared/types.ts';
-import { ROLES } from '../config/roles.ts';
+import { ROLES, isBigBonus } from '../config/roles.ts';
+import { SMALL_ROLES } from '../lottery/lottery.ts';
 import { diffOf } from '../store/gameReducer.ts';
 import { oneIn } from '../store/estimate.ts';
 import { DiffGraph } from './DiffGraph.tsx';
@@ -57,8 +58,8 @@ export function DataCounterDetail({ counters }: { counters: Counters }) {
           ) : (
             <ol className="history">
               {history.slice(0, 30).map((h, i) => (
-                <li key={`${h.totalGamesAt}-${i}`} className={h.kind === 'BIG' ? 'big' : 'reg'}>
-                  <span className="kind">{h.kind}</span>
+                <li key={`${h.totalGamesAt}-${i}`} className={isBigBonus(h.kind) ? 'big' : 'reg'}>
+                  <span className="kind">{ROLES[h.kind].label}</span>
                   <span className="games">{h.gamesSinceLast} G</span>
                   <span className="muted">（総 {h.totalGamesAt} G・差枚 {h.diffAt >= 0 ? `+${h.diffAt}` : h.diffAt}）</span>
                 </li>
@@ -70,7 +71,7 @@ export function DataCounterDetail({ counters }: { counters: Counters }) {
           <h3>小役確率（通常時 {n} G）</h3>
           <table className="rate-table">
             <tbody>
-              {(['BELL', 'MELON', 'CHERRY', 'REPLAY'] as const).map((r) => (
+              {SMALL_ROLES.map((r) => (
                 <tr key={r}>
                   <td>{ROLES[r].label}</td>
                   <td>{counters.smallCounts[r]} 回</td>

@@ -61,11 +61,20 @@ export type Window = readonly [
 // 役・抽選
 // ---------------------------------------------------------------------------
 
-/** 小役（払い出しまたは再遊技がある役） */
-export type SmallRole = 'BELL' | 'MELON' | 'CHERRY' | 'REPLAY';
+/** 払い出し（または再遊技）のある小役 */
+export type PayoutSmallRole = 'BELL' | 'MELON' | 'CHERRY' | 'REPLAY';
 
-/** ボーナス */
-export type BonusRole = 'BIG' | 'REG';
+/**
+ * 小役。リーチ目役（REACH_A / REACH_B）は配当 0 の小役として扱い、
+ * ボーナス当選ゲームにだけ重複する。リール制御は小役と同じ仕組みで引き込む／蹴飛ばす。
+ */
+export type SmallRole = PayoutSmallRole | 'REACH_A' | 'REACH_B';
+
+/** ボーナスに重複しうる役（抽選テーブルの重複行） */
+export type BonusDupRole = 'CHERRY' | 'MELON' | 'REACH_A' | 'REACH_B';
+
+/** ボーナス（BIG7 = 赤7 揃い、BIGG = G 揃い、REG = 赤7・赤7・BAR） */
+export type BonusRole = 'BIG7' | 'BIGG' | 'REG';
 
 /** 当選役（抽選テーブルの行に相当） */
 export type Flag = SmallRole | BonusRole | 'NONE';
@@ -109,16 +118,21 @@ export interface WinPattern {
   id: string;
   /** 対象の役 */
   role: SmallRole | BonusRole;
-  /** [左, 中, 右] それぞれに許される図柄。null は任意 */
+  /** [左, 中, 右] それぞれに許される図柄。null は任意（scope が 'window' のときは使わない） */
   symbols: readonly [readonly SymbolId[] | null, readonly SymbolId[] | null, readonly SymbolId[] | null];
   /**
    * 判定する範囲。
    * - 'line'  : 有効ライン上で 3 リールの図柄を見る（通常の 3 つ揃い）
    * - 'leftReel' : 左リールの指定段だけを見る（チェリーなど）
+   * - 'window' : 窓全体（3×3）を cells と比べる（リーチ目役など）
    */
-  scope: 'line' | 'leftReel';
+  scope: 'line' | 'leftReel' | 'window';
+  /** scope が 'line' のとき、見るライン。省略時は全ライン */
+  lines?: readonly LineId[];
   /** scope が 'leftReel' のとき、入賞とみなす段。省略時は全段 */
   leftRows?: readonly RowIndex[];
+  /** scope が 'window' のときの出目 [左, 中, 右] それぞれ [上段, 中段, 下段]。'*' は任意 */
+  cells?: readonly [ReelPattern, ReelPattern, ReelPattern];
   /** このパターン固有の払い出し枚数。省略時は RoleDef.payout を使う（角チェリー／中段チェリーの差など） */
   payout?: number;
 }
@@ -352,16 +366,9 @@ export interface GameState {
  * 行に無いぶん（denom − 合計）がハズレ。
  */
 export type LotteryRowKey =
-  | 'BIG'
-  | 'REG'
-  | 'BELL'
-  | 'MELON'
-  | 'CHERRY'
-  | 'REPLAY'
-  | 'BIG_CHERRY' // BIG＋チェリー重複
-  | 'BIG_MELON' // BIG＋スイカ重複
-  | 'REG_CHERRY' // REG＋チェリー重複
-  | 'REG_MELON'; // REG＋スイカ重複
+  | PayoutSmallRole // 小役単独
+  | BonusRole // ボーナス単独
+  | `${BonusRole}_${BonusDupRole}`; // ボーナス＋小役（チェリー・スイカ・リーチ目役A・B）の重複
 
 /** 1 モードぶんの抽選テーブル。各行の重みは整数、分母も整数 */
 export interface LotteryTable {

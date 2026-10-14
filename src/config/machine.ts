@@ -9,7 +9,7 @@ export const MACHINE = {
   /** サブタイトル（空でもよい） */
   subtitle: 'A-TYPE',
   /** バージョン表記 */
-  version: '0.5.0',
+  version: '0.7.0',
   /** リール本数（Aタイプは3本固定） */
   reelCount: 3,
   /** 1リールのコマ数 */
@@ -45,5 +45,5 @@ export const MACHINE = {
   /** localStorage のキー */
   storageKey: 'golden-slot:save',
   /** 保存データのバージョン（形式を変えたら上げる） */
-  saveVersion: 1,
+  saveVersion: 2,
 } as const;

@@ -37,10 +37,10 @@ function sweep(flags: ActiveFlags, order: ReelIndex[]) {
 
 describe('引き込む役・揃ってよい役', () => {
   it('小役優先。小役が無ければボーナス。何も無ければ null', () => {
-    expect(targetRoleOf({ small: 'BELL', bonus: 'BIG' })).toBe('BELL');
+    expect(targetRoleOf({ small: 'BELL', bonus: 'BIGG' })).toBe('BELL');
     expect(targetRoleOf({ small: null, bonus: 'REG' })).toBe('REG');
     expect(targetRoleOf({ small: null, bonus: null })).toBeNull();
-    expect(allowedRolesOf({ small: 'CHERRY', bonus: 'BIG' })).toEqual(['CHERRY']);
+    expect(allowedRolesOf({ small: 'CHERRY', bonus: 'BIGG' })).toEqual(['CHERRY']);
     expect(allowedRolesOf({ small: null, bonus: null })).toEqual([]);
   });
 });
@@ -59,7 +59,7 @@ describe('引き込み（順押し・全押下位置 21^3）', () => {
   });
 
   it('ベル＋BIG 重複でもベルを優先して揃え、ボーナス図柄は揃えない', () => {
-    const r = sweep({ small: 'BELL', bonus: 'BIG' }, [0, 1, 2]);
+    const r = sweep({ small: 'BELL', bonus: 'BIGG' }, [0, 1, 2]);
     expect(r.rate).toBe(1);
     expect(r.bad).toBe(0);
   });
@@ -132,7 +132,10 @@ describe('蹴飛ばし（非当選役を揃えない）', () => {
     ['ハズレ', { small: null, bonus: null }],
     ['スイカ', { small: 'MELON', bonus: null }],
     ['チェリー', { small: 'CHERRY', bonus: null }],
-    ['BIG 内部中', { small: null, bonus: 'BIG' }],
+    ['BIGG 内部中', { small: null, bonus: 'BIGG' }],
+    ['BIG7 内部中', { small: null, bonus: 'BIG7' }],
+    ['リーチ目役A＋BIG7', { small: 'REACH_A', bonus: 'BIG7' }],
+    ['リーチ目役B＋REG', { small: 'REACH_B', bonus: 'REG' }],
     ['REG 内部中', { small: null, bonus: 'REG' }],
     ['チェリー＋REG', { small: 'CHERRY', bonus: 'REG' }],
   ];
@@ -179,8 +182,8 @@ describe('リーチ目ルール（テーブル差し替え）', () => {
   const base = { reel: 0 as ReelIndex, pushKoma: push, stopped: [null, null, null] as const, mode: 'normal' as const };
 
   it('テーブルが空なら何もしない（結果は同じ）', () => {
-    const a = decideStop({ ...base, flags: { small: null, bonus: 'BIG' } });
-    const b = decideStop({ ...base, flags: { small: null, bonus: 'BIG' } }, { reachme: [] });
+    const a = decideStop({ ...base, flags: { small: null, bonus: 'BIGG' } });
+    const b = decideStop({ ...base, flags: { small: null, bonus: 'BIGG' } }, { reachme: [] });
     expect(a.stopKoma).toBe(b.stopKoma);
     // 先のルールで除外済みの候補は後のルールを評価しないので、評価が付いた候補だけ見る
     const prefer = a.candidates.flatMap((c) => c.evaluations).filter((e) => e.ruleId === 'reachmePrefer');
@@ -189,7 +192,7 @@ describe('リーチ目ルール（テーブル差し替え）', () => {
   });
 
   it('内部中に取りこぼしたら、リーチ目に一致する候補を優先する', () => {
-    const baseline = decideStop({ ...base, flags: { small: null, bonus: 'BIG' } }, { reachme: [] });
+    const baseline = decideStop({ ...base, flags: { small: null, bonus: 'BIGG' } }, { reachme: [] });
     // 本来はスベリ最小で落ちていた別の安全な候補を探す
     const other = baseline.candidates.find((c) => !c.chosen && c.excludedBy === 'minSlip');
     expect(other).toBeDefined();
@@ -198,7 +201,7 @@ describe('リーチ目ルール（テーブル差し替え）', () => {
       label: 'テスト用',
       reels: [[other!.symbols[0], other!.symbols[1], other!.symbols[2]], null, null],
     };
-    const r = decideStop({ ...base, flags: { small: null, bonus: 'BIG' } }, { reachme: [pattern] });
+    const r = decideStop({ ...base, flags: { small: null, bonus: 'BIGG' } }, { reachme: [pattern] });
     expect(r.stopKoma).toBe(other!.koma);
     const chosen = r.candidates.find((c) => c.chosen)!;
     expect(chosen.evaluations.find((e) => e.ruleId === 'reachmePrefer')?.verdict).toBe('accept');

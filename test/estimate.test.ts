@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NORMAL_TABLES } from '../src/config/probability.ts';
+import { bonusWeightOf } from '../src/lottery/lottery.ts';
 import { emptyCounters } from '../src/store/gameReducer.ts';
 import { estimateSetting, mostLikelySetting, oneIn } from '../src/store/estimate.ts';
 
@@ -14,8 +15,8 @@ describe('設定推測', () => {
     const n = 100000;
     const c = emptyCounters();
     c.normalGames = n;
-    c.bigCount = Math.round((n * (t.weights.BIG + t.weights.BIG_CHERRY + t.weights.BIG_MELON)) / t.denom);
-    c.regCount = Math.round((n * (t.weights.REG + t.weights.REG_CHERRY + t.weights.REG_MELON)) / t.denom);
+    c.bigCount = Math.round((n * (bonusWeightOf(t, 'BIG7') + bonusWeightOf(t, 'BIGG'))) / t.denom);
+    c.regCount = Math.round((n * bonusWeightOf(t, 'REG')) / t.denom);
     c.smallCounts.BELL = Math.round((n * t.weights.BELL) / t.denom);
     const est = estimateSetting(c);
     expect(mostLikelySetting(est)).toBe(6);
@@ -27,8 +28,8 @@ describe('設定推測', () => {
     const n = 100000;
     const c = emptyCounters();
     c.normalGames = n;
-    c.bigCount = Math.round((n * (t.weights.BIG + t.weights.BIG_CHERRY + t.weights.BIG_MELON)) / t.denom);
-    c.regCount = Math.round((n * (t.weights.REG + t.weights.REG_CHERRY + t.weights.REG_MELON)) / t.denom);
+    c.bigCount = Math.round((n * (bonusWeightOf(t, 'BIG7') + bonusWeightOf(t, 'BIGG'))) / t.denom);
+    c.regCount = Math.round((n * bonusWeightOf(t, 'REG')) / t.denom);
     c.smallCounts.BELL = Math.round((n * t.weights.BELL) / t.denom);
     expect(mostLikelySetting(estimateSetting(c))).toBe(1);
   });

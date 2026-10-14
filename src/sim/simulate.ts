@@ -12,7 +12,7 @@
 import type { BonusRole, GameMode, LotteryRowKey, Setting, SmallRole } from '../shared/types.ts';
 import { createRng } from '../shared/rng.ts';
 import { MACHINE } from '../config/machine.ts';
-import { ROLES, BONUS_SPECS, patternsOf } from '../config/roles.ts';
+import { ROLES, BONUS_SPECS, isBigBonus, patternsOf } from '../config/roles.ts';
 import { tableFor } from '../config/probability.ts';
 import { ROW_KEYS, applyCarry, drawLottery, rowForRoll } from '../lottery/lottery.ts';
 
@@ -60,12 +60,13 @@ export function simulate(setting: Setting, games: number, seed = 1): SimResult {
     regCount: 0,
     coinsIn: 0,
     coinsOut: 0,
-    bonusPayout: { BIG: 0, REG: 0 },
-    bonusGames: { BIG: 0, REG: 0 },
+    bonusPayout: { BIG7: 0, BIGG: 0, REG: 0 },
+    bonusGames: { BIG7: 0, BIGG: 0, REG: 0 },
   };
 
   let mode: GameMode = 'normal';
   let carried: BonusRole | null = null;
+  let bonusKind: BonusRole = 'REG';
   let bonusPaid = 0;
   let replayNext = false;
   const bet = MACHINE.betPerGame;
@@ -92,15 +93,16 @@ export function simulate(setting: Setting, games: number, seed = 1): SimResult {
         else res.coinsOut += theoreticalPayout(lottery.small, 'normal');
       } else if (carried) {
         // ハズレかつボーナス成立中 → 揃える（払い出し 0）
-        mode = carried === 'BIG' ? 'big' : 'reg';
-        if (carried === 'BIG') res.bigCount++;
+        bonusKind = carried;
+        mode = isBigBonus(carried) ? 'big' : 'reg';
+        if (isBigBonus(carried)) res.bigCount++;
         else res.regCount++;
         carried = null;
         bonusPaid = 0;
       }
     } else {
       // ボーナス中
-      const kind: BonusRole = mode === 'big' ? 'BIG' : 'REG';
+      const kind = bonusKind;
       res.bonusGames[kind]++;
       if (drawn.small && drawn.small !== 'REPLAY') {
         const pay = theoreticalPayout(drawn.small, mode);

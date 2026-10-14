@@ -1,6 +1,7 @@
 import type { Counters, LotteryTable, Setting } from '../shared/types.ts';
 import { NORMAL_TABLES } from '../config/probability.ts';
 import { ALL_SETTINGS } from '../lottery/setting.ts';
+import { bonusWeightOf } from '../lottery/lottery.ts';
 
 /**
  * データからの設定推測
@@ -14,10 +15,9 @@ export interface SettingEstimate {
   probability: number;
 }
 
+/** BIG（7・G 合算）と REG の当選重み */
 function bonusWeight(t: LotteryTable, kind: 'BIG' | 'REG'): number {
-  return kind === 'BIG'
-    ? t.weights.BIG + t.weights.BIG_CHERRY + t.weights.BIG_MELON
-    : t.weights.REG + t.weights.REG_CHERRY + t.weights.REG_MELON;
+  return kind === 'BIG' ? bonusWeightOf(t, 'BIG7') + bonusWeightOf(t, 'BIGG') : bonusWeightOf(t, 'REG');
 }
 
 /** 二項分布の対数尤度（定数項は省く） */
