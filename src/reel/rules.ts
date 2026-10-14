@@ -85,6 +85,7 @@ function reachmeHit(candidate: Candidate, ctx: StopContext, pick: (p: ReachmePat
 //    残りリールを「どの順・どの位置で押されても」当選役を揃えられる見込み（lookahead の value）が
 //    いちばん高い候補を残す。見込み 1.0 = 必ず揃う。すべて 0 なら判断しない（取りこぼし）。
 // ---------------------------------------------------------------------------
+
 export const pullInRule: StopRule = {
   id: 'pullIn',
   label: '引き込み',
@@ -161,6 +162,8 @@ export const reachmePreferRule: StopRule = {
 /**
  * 止めてはいけないリーチ目（default は登録分すべて、ボーナス成立後は他系）になる候補を除外する。
  * いま一致している候補だけでなく、残りリールをどう押されても避けられない候補も落とす。
+ * default では引き込みの見込み（value）の時点でこの形は数えないので、非成立時のリーチ目は絶対に出ない。
+ * ボーナス成立後は引き込みの後に適用するので、ボーナスを引き込める候補を他系の形を理由に捨てることはない。
  */
 export const reachmeExcludeRule: StopRule = {
   id: 'reachmeExclude',
@@ -168,7 +171,7 @@ export const reachmeExcludeRule: StopRule = {
   evaluate(candidate, ctx) {
     if (ctx.reachme.length === 0) return { ruleId: 'reachmeExclude', verdict: 'neutral', reason: '対象外' };
     const bonus = ctx.request.flags.bonus;
-    if (ctx.look(candidate).clean) return { ruleId: 'reachmeExclude', verdict: 'neutral', reason: 'リーチ目にならない' };
+    if (ctx.look(candidate).avoid) return { ruleId: 'reachmeExclude', verdict: 'neutral', reason: 'リーチ目にならない' };
     const hit = reachmeHit(candidate, ctx, (p) => isExcludedIn(p, bonus));
     const what = bonus ? `${BONUS_SPECS[bonus].label} 中に他系のリーチ目` : '非成立なのにリーチ目';
     if (hit) return { ruleId: 'reachmeExclude', verdict: 'reject', reason: `${what}「${hit.label}」になる` };
@@ -194,14 +197,18 @@ export const minSlipRule: StopRule = {
  * ★ 停止制御の優先順位（上から順に適用）
  * 1. 引き込み      … 当選役を（残りをどう押されても）揃えられる見込みが最大の位置を残す
  * 2. 蹴飛ばし      … 非当選役の入賞形を作る位置・作らされる位置を落とす
- * 3. リーチ目優先  … ボーナス成立後に取りこぼしたら、この系のリーチ目を作れる見込みが最大の位置を残す
- * 4. リーチ目除外  … 非成立時は登録リーチ目を、成立後は他系のリーチ目を出さない（避けられない位置も落とす）
+ * 3. リーチ目除外  … 非成立時は登録リーチ目を、成立後は他系のリーチ目を出さない（避けられない位置も落とす）
+ * 4. リーチ目優先  … ボーナス成立後に取りこぼしたら、この系のリーチ目を作れる見込みが最大の位置を残す
  * 5. スベリ最小    … それでも複数残ればスベリが小さい方
  *
- * 引き込みの accept は lookahead が clean（非当選役もリーチ目も避けられる）な候補にしか付かないので、
- * 引き込み→蹴飛ばし→除外 の順でも、蹴飛ばし・除外が引き込みに負けることはない。
+ * 除外を優先より先に置くのは、「自系のリーチ目を作れるが、残りリールの押し方次第で他系の形を避けられない」位置を
+ * 優先で拾ってしまわないため（除外が全滅するときだけ、やむなくその位置が残る）。
+ *
+ * 引き込みの accept は lookahead が clean（非当選役を避けられる。default ではリーチ目も）な候補にしか付かないので、
+ * 引き込み→蹴飛ばし→除外 の順でも、蹴飛ばしが引き込みに負けることはなく、default の除外も負けない。
+ * ボーナス成立後の他系リーチ目の除外だけは引き込みに負ける（ボーナスを揃える方を優先する）。
  */
-export const STOP_RULES: readonly StopRule[] = [pullInRule, kickRule, reachmePreferRule, reachmeExcludeRule, minSlipRule];
+export const STOP_RULES: readonly StopRule[] = [pullInRule, kickRule, reachmeExcludeRule, reachmePreferRule, minSlipRule];
 
 // ---------------------------------------------------------------------------
 // ルールセット（通常時／ボーナス種別ごと）

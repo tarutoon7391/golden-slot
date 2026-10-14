@@ -38,7 +38,7 @@ describe('役・入賞形', () => {
     expect(patternsOf('BIGG').map((p) => p.id)).toEqual(['BIGG_G']);
     expect(patternsOf('REG').map((p) => p.id)).toEqual(['REG_77BAR']);
     expect(patternsOf('REG')[0].symbols).toEqual([['seven'], ['seven'], ['bar']]);
-    expect([...patternsOf('REG')[0].lines!].sort()).toEqual(['bottom', 'downRight', 'upRight']);
+    expect([...patternsOf('REG')[0].lines!]).toEqual(['downRight']);
   });
 
   it('リーチ目役は配当 0 の小役。A は上段 BAR 揃い（窓全体）、B は左中段チェリー', () => {
@@ -137,8 +137,21 @@ describe('確率テーブル', () => {
 });
 
 describe('リーチ目・演出・図柄', () => {
-  it('リーチ目テーブルは初期状態で空（器だけ）', () => {
-    expect(REACHME).toEqual([]);
+  it('リーチ目テーブル: id が一意で、各パターンは少なくとも 1 リールを見る。bonus は BIG7/BIGG/REG のみ', () => {
+    expect(REACHME.length).toBeGreaterThan(100);
+    const ids = REACHME.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const p of REACHME) {
+      expect(p.reels.some((r) => r !== null), p.id).toBe(true);
+      for (const b of p.bonus ?? []) expect(['BIG7', 'BIGG', 'REG']).toContain(b);
+      for (const s of p.when?.reels?.[0]?.slip ?? []) expect(s).toBeGreaterThanOrEqual(0);
+    }
+    // 仕様書 §3 の番号がそろっている
+    for (const id of ['R01', 'R02', 'R03', 'R05', 'R06', 'R07', 'R08', 'R09', 'R10', 'R12', 'S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'G01', 'G02', 'G03', 'G04', 'G05', 'G06', 'G07']) {
+      expect(ids, id).toContain(id);
+    }
+    expect(ids.filter((i) => i.startsWith('R04-')).length).toBeGreaterThan(0);
+    expect(ids.filter((i) => i.startsWith('R11-'))).toHaveLength(74);
   });
 
   it('演出テーブルは全状況に重みがあり、合計が正', () => {

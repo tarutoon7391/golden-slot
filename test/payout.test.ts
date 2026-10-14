@@ -61,21 +61,22 @@ describe('払い出し判定', () => {
     const seven = judgeWindow(W(['seven', 'bell', 'replay'], ['seven', 'g', 'cherry'], ['seven', 'bell', 'g']), 'normal');
     expect(seven.bonusHit).toBe('BIG7');
     expect(seven.hits[0].patternId).toBe('BIG7_SEVEN');
-    // 下段の 7・7・BAR は REG
-    const reg = judgeWindow(W(['g', 'bell', 'seven'], ['bell', 'g', 'seven'], ['g', 'bell', 'bar']), 'normal');
-    expect(reg.bonusHit).toBe('REG');
-    expect(reg.hits[0].patternId).toBe('REG_77BAR');
-    expect(reg.hits[0].line).toBe('bottom');
-    expect(reg.totalPayout).toBe(0);
-    // 上段・中段の 7・7・BAR は無効（配列上リプレイが同時に揃うため）
+    // 下段の 7・7・BAR は無効（配列上、代用スイカが右下がりに同時に揃うため）
+    const regBottom = judgeWindow(W(['g', 'bell', 'seven'], ['bell', 'g', 'seven'], ['g', 'bell', 'bar']), 'normal');
+    expect(regBottom.bonusHit).toBeNull();
+    // 上段・中段の 7・7・BAR も無効（配列上リプレイが同時に揃うため）
     const regTop = judgeWindow(W(['seven', 'bell', 'replay'], ['seven', 'g', 'cherry'], ['bar', 'bell', 'g']), 'normal');
     expect(regTop.bonusHit).toBeNull();
     const regMid = judgeWindow(W(['g', 'seven', 'bell'], ['bell', 'seven', 'g'], ['g', 'bar', 'bell']), 'normal');
     expect(regMid.bonusHit).toBeNull();
-    // 右下がりは有効
+    // 右下がりだけ有効
     const regDiag = judgeWindow(W(['seven', 'bell', 'g'], ['bell', 'seven', 'g'], ['g', 'bell', 'bar']), 'normal');
     expect(regDiag.bonusHit).toBe('REG');
+    expect(regDiag.hits[0].patternId).toBe('REG_77BAR');
     expect(regDiag.hits[0].line).toBe('downRight');
+    expect(regDiag.totalPayout).toBe(0);
+    const regUp = judgeWindow(W(['g', 'bell', 'seven'], ['bell', 'seven', 'g'], ['bar', 'bell', 'g']), 'normal');
+    expect(regUp.bonusHit).toBeNull();
     const bar = judgeWindow(W(['g', 'bell', 'bar'], ['bell', 'bar', 'cherry'], ['bar', 'bell', 'g']), 'normal');
     expect(bar.bonusHit).toBeNull();
     expect(bar.hits).toEqual([]);

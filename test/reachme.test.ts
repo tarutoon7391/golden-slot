@@ -195,19 +195,20 @@ describe('ボーナス成立後（種別セット）', () => {
     const la = createLookahead([G01]);
     const q = { target: null, positions: [19, 1, 1] as const, order: [0, 1, 2] as const, masks: [0, 0, 0] as const };
     expect(la.query({ ...q, bonus: null }).clean).toBe(false);
-    expect(la.query({ ...q, bonus: 'BIG7' }).clean).toBe(false);
-    expect(la.query({ ...q, bonus: 'BIGG' }).clean).toBe(true);
+    expect(la.query({ ...q, bonus: 'BIG7' }).avoid).toBe(false);
+    expect(la.query({ ...q, bonus: 'BIG7' }).clean).toBe(true); // 成立後は引き込みの足切りにはしない
+    expect(la.query({ ...q, bonus: 'BIGG' }).avoid).toBe(true);
     expect(la.query({ ...q, bonus: 'BIGG' }).reach).toBe(1);
   });
 });
 
 describe('生成リーチ目（reachmeGen）', () => {
-  it('R11: 3 段 × 27 通りから入賞形（7・7・7 / G・G・G / 下段 7・7・BAR / 上段 BAR・BAR・BAR）を除いた 73 件', () => {
+  it('R11: 3 段 × 27 通りから入賞形（7・7・7 / G・G・G / 上段 BAR・BAR・BAR）を除いた 74 件', () => {
     const list = horizontalBonusLines();
-    expect(list).toHaveLength(73);
+    expect(list).toHaveLength(74);
     expect(list.every((p) => p.strict)).toBe(true);
     expect(isWinShape(['seven', 'seven', 'seven'], 1)).toBe(true);
-    expect(isWinShape(['seven', 'seven', 'bar'], 2)).toBe(true);
+    expect(isWinShape(['seven', 'seven', 'bar'], 2)).toBe(false); // REG は右下がりのみ
     expect(isWinShape(['seven', 'seven', 'bar'], 0)).toBe(false);
     expect(isWinShape(['bar', 'bar', 'bar'], 0)).toBe(true);
     expect(isWinShape(['bar', 'bar', 'bar'], 1)).toBe(false);
@@ -243,7 +244,7 @@ describe('生成リーチ目（reachmeGen）', () => {
     let reverse = 0;
     for (let a = 1; a <= 21; a++)
       for (let c = 1; c <= 21; c++) {
-        const base = stopSequence(HAZURE, 'normal', [a, 1, c], [0, 2]).positions;
+        const base = stopSequence(HAZURE, 'normal', [a, 1, c], [0, 2], { reachme: [] }).positions;
         if (tempaiRoles(base[0]!, base[2]!).length >= 2) before++;
         const now = stopSequence(HAZURE, 'normal', [a, 1, c], [0, 2], { reachme: table }).positions;
         if (tempaiRoles(now[0]!, now[2]!).length >= 2) after++;

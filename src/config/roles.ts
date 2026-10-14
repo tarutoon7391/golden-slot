@@ -54,8 +54,8 @@ export const WIN_PATTERNS: readonly WinPattern[] = [
   // --- ボーナス ---
   { id: 'BIG7_SEVEN', role: 'BIG7', scope: 'line', symbols: [['seven'], ['seven'], ['seven']] },
   { id: 'BIGG_G', role: 'BIGG', scope: 'line', symbols: [['g'], ['g'], ['g']] },
-  // REG は 赤7・赤7・BAR。上段・中段揃いは配列上リプレイが同時に揃うため無効（下段・右上がり・右下がりのみ）
-  { id: 'REG_77BAR', role: 'REG', scope: 'line', symbols: [['seven'], ['seven'], ['bar']], lines: ['bottom', 'downRight', 'upRight'] },
+  // REG は 赤7・赤7・BAR の右下がりのみ。上段・中段揃いは配列上リプレイが、下段・右上がりは代用スイカ（ス・ス・BAR）が同時に揃うため無効
+  { id: 'REG_77BAR', role: 'REG', scope: 'line', symbols: [['seven'], ['seven'], ['bar']], lines: ['downRight'] },
 
   // --- 小役 ---
   { id: 'BELL', role: 'BELL', scope: 'line', symbols: [['bell'], ['bell'], ['bell']] },
