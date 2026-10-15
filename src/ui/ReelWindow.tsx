@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import type { GameState, LineId, ReelIndex } from '../shared/types.ts';
 import { REELS } from '../config/reels.ts';
 import { SYMBOLS } from '../config/symbols.ts';
 import { LINES } from '../config/lines.ts';
-import { STRIP_COPIES, reelPosAt, translatePercent } from './reelMath.ts';
+import { STRIP_COPIES, glowAt, reelPosAt, translatePercent } from './reelMath.ts';
 
 /**
  * 3 リール窓
@@ -53,9 +53,19 @@ export function ReelWindow({ state, highlightLines = [], instant = false }: Prop
         <div key={reel} className={`reel${spinningReels[reel] ? ' spinning' : ''}`}>
           <div className="strip" ref={(el) => void (strips.current[reel] = el)}>
             {Array.from({ length: STRIP_COPIES }, (_, copy) =>
-              REELS[reel].map((sym, i) => (
-                <img key={`${copy}-${i}`} className="cell" src={SYMBOLS[sym].imagePath} alt={SYMBOLS[sym].label} draggable={false} />
-              )),
+              REELS[reel].map((sym, i) => {
+                const glow = glowAt(reel, i);
+                return (
+                  <img
+                    key={`${copy}-${i}`}
+                    className={glow ? 'cell glow' : 'cell'}
+                    style={glow ? ({ '--glow': glow } as CSSProperties) : undefined}
+                    src={SYMBOLS[sym].imagePath}
+                    alt={SYMBOLS[sym].label}
+                    draggable={false}
+                  />
+                );
+              }),
             )}
           </div>
         </div>

@@ -23,5 +23,20 @@ export const SYMBOLS: Record<SymbolId, SymbolInfo> = {
   replay: { id: 'replay', label: 'リプレイ', imagePath: '/symbols/replay.svg' },
 };
 
+/**
+ * 目押し用に光らせる図柄（色は CSS の drop-shadow に使う）。
+ * isolatedOnly: 前後のコマが同じ図柄でないときだけ光らせる。
+ *   左リールの G 3 連は見つけやすいので光らせず、単独 G だけ光らせるための設定。
+ */
+export interface GlowInfo {
+  color: string;
+  isolatedOnly?: boolean;
+}
+
+export const GLOW: Partial<Record<SymbolId, GlowInfo>> = {
+  seven: { color: '#ff3b3b' },
+  g: { color: '#ffb300', isolatedOnly: true },
+};
+
 /** 全図柄IDの一覧（順序は表示用） */
 export const SYMBOL_IDS: readonly SymbolId[] = ['seven', 'g', 'bar', 'bell', 'melon', 'cherry', 'replay'];

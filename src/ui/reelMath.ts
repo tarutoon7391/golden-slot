@@ -1,5 +1,6 @@
 import type { GameState, ReelIndex } from '../shared/types.ts';
-import { KOMA_COUNT, normalizeKoma } from '../config/reels.ts';
+import { KOMA_COUNT, REELS, normalizeKoma } from '../config/reels.ts';
+import { GLOW } from '../config/symbols.ts';
 import { MS_PER_KOMA } from '../store/gameReducer.ts';
 
 /**
@@ -33,4 +34,21 @@ export function reelPosAt(s: GameState, reel: ReelIndex, t: number): number {
 export function translatePercent(pos: number): number {
   const ci = (((KOMA_COUNT - pos) % KOMA_COUNT) + KOMA_COUNT) % KOMA_COUNT;
   return (-(KOMA_COUNT - 1 + ci) / (KOMA_COUNT * STRIP_COPIES)) * 100;
+}
+
+/**
+ * 配列 index のコマを光らせるなら色、光らせないなら null。
+ * GLOW の isolatedOnly は「前後（配列は環状）が同じ図柄でない」ときだけ光らせる。
+ */
+export function glowAt(reel: ReelIndex, index: number): string | null {
+  const strip = REELS[reel];
+  const sym = strip[index];
+  const glow = GLOW[sym];
+  if (!glow) return null;
+  if (glow.isolatedOnly) {
+    const prev = strip[(index - 1 + KOMA_COUNT) % KOMA_COUNT];
+    const next = strip[(index + 1) % KOMA_COUNT];
+    if (prev === sym || next === sym) return null;
+  }
+  return glow.color;
 }

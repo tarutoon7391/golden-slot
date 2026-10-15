@@ -27,7 +27,7 @@ describe('画面の描画', () => {
     expect(html).toContain(MACHINE.name);
     expect(html).toContain('回転数');
     expect((html.match(/class="reel"/g) ?? []).length).toBe(3);
-    expect((html.match(/class="cell"/g) ?? []).length).toBe(21 * 3 * 3);
+    expect((html.match(/class="cell( glow)?"/g) ?? []).length).toBe(21 * 3 * 3);
     expect(html).toContain('aria-label="レバー"');
     expect(html).toContain('aria-label="左ストップ"');
     expect(html).toContain(String(MACHINE.initialCoins));
@@ -44,6 +44,12 @@ describe('画面の描画', () => {
   it('リール窓は入賞ラインの強調クラスを付けられる', () => {
     const html = renderToString(createElement(ReelWindow, { state: base, highlightLines: ['middle'] }));
     expect((html.match(/payline hit/g) ?? []).length).toBe(1);
+  });
+
+  it('赤7 と単独 G のコマに発光クラスが付く（左リール: 7 が 1 個・単独 G が 1 個、3 周で 6 個）', () => {
+    const html = renderToString(createElement(ReelWindow, { state: base }));
+    // 左 1 + 中 1 + 右 1 の赤7、左の単独 G 1 + 中 1 + 右 1 = 6 コマ × 3 周
+    expect((html.match(/class="cell glow"/g) ?? []).length).toBe(6 * 3);
   });
 
   it('図柄画像のパスは public/symbols 配下の SVG', () => {
