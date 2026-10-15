@@ -7,6 +7,7 @@ import { createInitialState } from '../src/store/gameReducer.ts';
 import type { GameApi } from '../src/store/useGame.ts';
 import { Cabinet } from '../src/ui/Cabinet.tsx';
 import { ReelWindow } from '../src/ui/ReelWindow.tsx';
+import { LogoPanel } from '../src/ui/LogoPanel.tsx';
 import { ResultScreen } from '../src/ui/ResultScreen.tsx';
 
 /**
@@ -31,6 +32,23 @@ describe('画面の描画', () => {
     expect(html).toContain('aria-label="レバー"');
     expect(html).toContain('aria-label="左ストップ"');
     expect(html).toContain(String(MACHINE.initialCoins));
+  });
+
+  it('ロゴパネル: 筐体に常にあり、既定は全消灯。区切りごとに on クラスが付く', () => {
+    const html = renderToString(createElement(Cabinet, { api: fakeApi(base) }));
+    expect((html.match(/class="logo-panel"/g) ?? []).length).toBe(1);
+    expect((html.match(/class="logo-seg"/g) ?? []).length).toBe(3);
+    expect(html).toContain('GO消灯・LD消灯・EN消灯');
+    expect(MACHINE.logoSegments.join('')).toBe(MACHINE.name);
+
+    const mid = renderToString(createElement(LogoPanel, { lamps: ['off', 'on', 'off'] }));
+    expect(mid).toContain('class="logo-panel on"'); // 1 つでも点けば枠も on
+    expect((mid.match(/class="logo-seg on"/g) ?? []).length).toBe(1);
+    expect(mid).toContain('>LD</span>');
+    expect(mid).toContain('GO消灯・LD点灯・EN消灯');
+
+    const all = renderToString(createElement(Cabinet, { api: fakeApi(base), logoLamps: ['on', 'on', 'on'] }));
+    expect((all.match(/class="logo-seg on"/g) ?? []).length).toBe(3);
   });
 
   it('設定発表画面: 設定と推測が出る', () => {

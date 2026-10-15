@@ -6,6 +6,8 @@
 export const MACHINE = {
   /** 機種名（仮称） */
   name: 'GOLDEN',
+  /** ロゴパネルの区切り（つなげると name になる。区切りごとに独立して点灯できる） */
+  logoSegments: ['GO', 'LD', 'EN'],
   /** サブタイトル（空でもよい） */
   subtitle: 'A-TYPE',
   /** バージョン表記 */

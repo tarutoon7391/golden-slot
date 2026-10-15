@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { BonusRole, GameState, KomaNo, ReelIndex, Setting, SmallRole, StopResult, SymbolId } from '../shared/types.ts';
+import { MACHINE } from '../config/machine.ts';
 import { KOMA_COUNT } from '../config/reels.ts';
 import { LINE_LABELS } from '../config/lines.ts';
 import { ROLES } from '../config/roles.ts';
@@ -209,6 +210,19 @@ function PushSection({ debug }: { debug: DebugControl }) {
         <input type="checkbox" checked={settings.skipAnimation} onChange={(e) => update({ skipAnimation: e.target.checked })} />
         回転アニメーション・ウェイト・払い出し表示を飛ばす
       </label>
+      <div className="dbg-row-flex">
+        <span>ロゴパネル点灯（見た目の確認用。点灯条件は後のフェーズ）:</span>
+        {MACHINE.logoSegments.map((seg, i) => (
+          <label key={seg} className="dbg-check">
+            <input
+              type="checkbox"
+              checked={settings.logoLamps[i] === 'on'}
+              onChange={(e) => update({ logoLamps: settings.logoLamps.map((l, j) => (j === i ? (e.target.checked ? 'on' : 'off') : l)) })}
+            />
+            {seg}
+          </label>
+        ))}
+      </div>
       <p className="dbg-note">空欄のリールは押した時刻から中段のコマ番号を求める（通常どおり）。指定したコマ番号が中段にある状態で押したことになり、そこから制御でスベる。</p>
     </details>
   );

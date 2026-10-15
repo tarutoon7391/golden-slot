@@ -17,7 +17,7 @@ export default function App() {
   const debug = useDebugSettings();
   const api = useGame(DEBUG ? debug.overridesRef : undefined);
   return (
-    <Cabinet api={api} instantReels={DEBUG && debug.settings.skipAnimation}>
+    <Cabinet api={api} instantReels={DEBUG && debug.settings.skipAnimation} logoLamps={DEBUG ? debug.settings.logoLamps : undefined}>
       {DEBUG && <DebugPanel api={api} debug={debug} />}
     </Cabinet>
   );

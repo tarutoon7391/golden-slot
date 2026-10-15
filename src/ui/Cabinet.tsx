@@ -6,13 +6,15 @@ import { isMuted, setMuted } from '../effects/audio.ts';
 import type { GameApi } from '../store/useGame.ts';
 import { Controls } from './Controls.tsx';
 import { DataCounterCompact, DataCounterDetail } from './DataCounter.tsx';
+import { LogoPanel } from './LogoPanel.tsx';
+import { LOGO_ALL_OFF, type LogoLamps } from './logoLamps.ts';
 import { ReelWindow } from './ReelWindow.tsx';
 import { ResultScreen } from './ResultScreen.tsx';
 import { useDeadlinePassed } from './useDeadline.ts';
 
 /**
  * 筐体全体
- * 上から: ヘッダー（機種名） → データカウンター → リール窓 → クレジット表示 → 操作パネル → データ詳細
+ * 上から: ヘッダー（機種名） → データカウンター → ロゴパネル → リール窓 → クレジット表示 → 操作パネル → データ詳細
  */
 
 /** ウェイト中（レバーは叩いたが回転開始前）か。開始時刻に自動で再描画される */
@@ -34,9 +36,11 @@ interface CabinetProps {
   children?: ReactNode;
   /** デバッグ: 回転アニメーションを省く */
   instantReels?: boolean;
+  /** ロゴパネルの点灯（GO / LD / EN ごと）。ゲーム本体はまだ切り替えない（常に全消灯）。点灯条件は後のフェーズで決める */
+  logoLamps?: LogoLamps;
 }
 
-export function Cabinet({ api, children, instantReels = false }: CabinetProps) {
+export function Cabinet({ api, children, instantReels = false, logoLamps = LOGO_ALL_OFF }: CabinetProps) {
   const { state } = api;
   const waiting = useWaiting(state);
   const flash = useFlash(state);
@@ -73,6 +77,7 @@ export function Cabinet({ api, children, instantReels = false }: CabinetProps) {
     <main className="cabinet">
       <Header muted={muted} onToggleMute={toggleMute} />
       <DataCounterCompact counters={state.counters} />
+      <LogoPanel lamps={logoLamps} />
 
       <section className={windowClass}>
         <div className={`lamp${effect?.lamp === 'on' ? ' on' : ''}`} aria-label="告知ランプ" />

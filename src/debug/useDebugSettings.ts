@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from '
 import type { KomaNo, LotteryRowKey, Setting } from '../shared/types.ts';
 import { rowToResult } from '../lottery/lottery.ts';
 import type { GameOverrides } from '../store/useGame.ts';
+import { LOGO_ALL_OFF, type LogoLamps } from '../ui/logoLamps.ts';
 
 /**
  * デバッグパネルの設定を持ち、useGame の差し込み口（GameOverrides）に変換する。
@@ -22,6 +23,8 @@ export interface DebugSettings {
   fixedSetting: Setting | null;
   /** 回転アニメーションと待ち時間を飛ばす */
   skipAnimation: boolean;
+  /** ロゴパネルの点灯（GO / LD / EN ごと。見た目の確認用。ゲーム本体はまだ切り替えない） */
+  logoLamps: LogoLamps;
 }
 
 export const DEFAULT_DEBUG_SETTINGS: DebugSettings = {
@@ -30,6 +33,7 @@ export const DEFAULT_DEBUG_SETTINGS: DebugSettings = {
   pushes: [null, null, null],
   fixedSetting: null,
   skipAnimation: false,
+  logoLamps: LOGO_ALL_OFF,
 };
 
 /** 設定 → GameOverrides（純粋関数・テスト用に分離） */
