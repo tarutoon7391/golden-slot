@@ -28,11 +28,11 @@ const R06: ReachmePattern = { id: 'R06', label: '7中段', reels: [reelAt(0, 13)
 const R07: ReachmePattern = { id: 'R07', label: '7下段3コマ以上スベリ', reels: [reelAt(0, 14), null, null], when: { reels: { 0: { slip: [3, 4] } } } };
 const R08: ReachmePattern = { id: 'R08', label: 'BAR枠上', reels: [reelAt(0, 3), null, null] };
 const R12: ReachmePattern = { id: 'R12', label: '順押しBAR上段テンパイ', reels: [reelAt(0, 4), reelAt(1, 5), null] };
-const S03: ReachmePattern = { id: 'S03', label: 'G上段→4コマで7上段', reels: [reelAt(0, 12), null, null], when: { reels: { 0: { push: [8] } } }, bonus: ['BIG7', 'REG'] };
+const S03: ReachmePattern = { id: 'S03', label: 'G上段→4コマで7上段', reels: [reelAt(0, 12), null, null], when: { reels: { 0: { push: [8] } } }, bonus: ['BIG7', 'REG'], viaForPullIn: true };
 const G01: ReachmePattern = { id: 'G01', label: '3連G', reels: [reelAt(0, 19), null, null], bonus: ['BIGG'] };
-const G04: ReachmePattern = { id: 'G04', label: 'BAR上段→4コマでG上段', reels: [reelAt(0, 8), null, null], when: { reels: { 0: { push: [4] } } }, bonus: ['BIGG'] };
+const G04: ReachmePattern = { id: 'G04', label: 'BAR上段→4コマでG上段', reels: [reelAt(0, 8), null, null], when: { reels: { 0: { push: [4] } } }, bonus: ['BIGG'], viaForPullIn: true };
 
-const SAMPLE: readonly ReachmePattern[] = [R01, R02, R03, R05, R06, R07, R08, R12, S03, G01, G04, ...sandwichDoubleTempai(), ...horizontalBonusLines()];
+const SAMPLE: readonly ReachmePattern[] = [R01, R02, R03, R05, R06, R07, R08, R12, S03, G01, G04, ...sandwichDoubleTempai().map((p) => ({ ...p, viaForPullIn: true })), ...horizontalBonusLines()];
 
 describe('リーチ目の条件（押し順・押下位置・スベリ）', () => {
   it('条件はリールごとのビットに畳まれ、押下位置・スベリで判定する', () => {
@@ -124,7 +124,7 @@ describe('default セットの除外（条件付き）', () => {
     const table = [X12, R06, R07];
     const a = decideStop({ reel: 0, pushKoma: 11, stopped: noStop, flags: HAZURE, mode: 'normal', history: [] }, { reachme: table });
     expect(a.stopKoma).toBe(15);
-    expect(a.candidates.find((c) => c.koma === 14)?.excludedBy).toBe('reachmeExclude');
+    expect(a.candidates.find((c) => c.koma === 14)?.excludedBy).toBe('reachmeHard');
     const b = decideStop({ reel: 0, pushKoma: 13, stopped: noStop, flags: HAZURE, mode: 'normal', history: [] }, { reachme: table });
     expect(b.stopKoma).toBe(14); // 1 コマスベリなら OK
     // R07 が無ければ 11 番押しでも 14 で止まる
@@ -144,7 +144,7 @@ describe('default セットの除外（条件付き）', () => {
     const table = [R03];
     const first = decideStop({ reel: 1, pushKoma: 10, stopped: noStop, flags: HAZURE, mode: 'normal', history: [] }, { reachme: table });
     expect(first.stopKoma).not.toBe(10);
-    expect(first.candidates.find((c) => c.koma === 10)?.excludedBy).toBe('reachmeExclude');
+    expect(first.candidates.find((c) => c.koma === 10)?.excludedBy).toBe('reachmeHard'); // R03 は strict なので経由不可の枠で落ちる
     const left = decideStop({ reel: 0, pushKoma: 1, stopped: noStop, flags: HAZURE, mode: 'normal', history: [] }, { reachme: table });
     const history: StopRecord[] = [{ reel: 0, pushKoma: 1, stopKoma: left.stopKoma, slip: left.slip }];
     const second = decideStop({ reel: 1, pushKoma: 10, stopped: [left.stopKoma, null, null], flags: HAZURE, mode: 'normal', history }, { reachme: table });
@@ -168,7 +168,7 @@ describe('default セットの除外（条件付き）', () => {
     // 2 リール目の形から 3 リール目が逃げられない形を作る: 左 4 + 中 5（R12）は右がどこでもリーチ目
     const mid = decideStop({ reel: 1, pushKoma: 5, stopped: [4, null, null], flags: HAZURE, mode: 'normal', history: [{ reel: 0, pushKoma: 4, stopKoma: 4, slip: 0 }] }, { reachme: [R12] });
     expect(mid.stopKoma).not.toBe(5);
-    expect(mid.candidates.find((c) => c.koma === 5)?.excludedBy).toBe('reachmeExclude');
+    expect(mid.candidates.find((c) => c.koma === 5)?.excludedBy).toBe('reachmeHard');
   });
 });
 
@@ -186,7 +186,7 @@ describe('ボーナス成立後（種別セット）', () => {
   it('他系のリーチ目: BIG7 成立中は G 系の形（3 連 G）を止めない。BIGG 成立中は止める', () => {
     const big7 = decideStop({ reel: 0, pushKoma: 17, stopped: noStop, flags: { small: null, bonus: 'BIG7' }, mode: 'normal', history: [] }, { reachme: table });
     expect(big7.stopKoma).not.toBe(19);
-    expect(big7.candidates.find((c) => c.koma === 19)?.excludedBy).toBe('reachmeExclude');
+    expect(big7.candidates.find((c) => c.koma === 19)?.excludedBy).toBe('reachmeExclude'); // 成立後の他系（非 strict）は通常の除外
     const bigg = decideStop({ reel: 0, pushKoma: 17, stopped: noStop, flags: { small: null, bonus: 'BIGG' }, mode: 'normal', history: [] }, { reachme: table });
     expect(bigg.stopKoma).toBe(19);
   });
@@ -195,6 +195,10 @@ describe('ボーナス成立後（種別セット）', () => {
     const la = createLookahead([G01]);
     const q = { target: null, positions: [19, 1, 1] as const, order: [0, 1, 2] as const, masks: [0, 0, 0] as const };
     expect(la.query({ ...q, bonus: null }).clean).toBe(false);
+    expect(la.query({ ...q, bonus: null }).clean2).toBe(false); // viaForPullIn でないので救済の足切りにも掛かる
+    const via = createLookahead([{ ...G01, viaForPullIn: true }]);
+    expect(via.query({ ...q, bonus: null }).clean).toBe(false);
+    expect(via.query({ ...q, bonus: null }).clean2).toBe(true); // 経由可なら救済の足切りには掛からない
     expect(la.query({ ...q, bonus: 'BIG7' }).avoid).toBe(false);
     expect(la.query({ ...q, bonus: 'BIG7' }).clean).toBe(true); // 成立後は引き込みの足切りにはしない
     expect(la.query({ ...q, bonus: 'BIGG' }).avoid).toBe(true);
@@ -260,10 +264,18 @@ describe('生成リーチ目（reachmeGen）', () => {
 describe('受け入れ検算（サンプルテーブル・本物の decideStop・全押し順 × 全押下位置）', () => {
   for (const flags of DEFAULT_FLAGS) {
     const name = flags.small ?? 'ハズレ';
-    it(`${name}: 止めてはいけないリーチ目も非当選役も出ない`, () => {
-      const r = checkDefaultEscapes(SAMPLE, { flagsList: [flags], limit: 20 });
+    it(`${name}: 非当選役も strict のリーチ目も出ない。非 strict のリーチ目形は「小役を取りこぼした」ときだけ（救済の副作用）`, () => {
+      // 仕様 v1.2 P1 補足・P8: 従来なら取りこぼし確定の場面では、非 strict のリーチ目形を経由してでも小役を引き込む。
+      // その後に目押しを外すと形だけが残る（ガセ）。それ以外の場面では従来どおり 1 件も出ない
+      const r = checkDefaultEscapes(SAMPLE, { flagsList: [flags], limit: 0 });
       expect(r.checked).toBe(6 * 21 ** 3);
-      expect(r.violations.map(formatViolation)).toEqual([]);
+      // 出てよいのは viaForPullIn の形だけ（strict・2 確などの形は救済でも経由しない）
+      const hard = r.violations.filter((v) => v.badRoles.length > 0 || v.reachme.some((id) => !SAMPLE.find((p) => p.id === id)?.viaForPullIn));
+      expect(hard.map(formatViolation)).toEqual([]);
+      // 小役が揃っているのにリーチ目扱いになる違反は無い（非 strict は smallWin で除かれている）
+      const target = flags.small;
+      for (const v of r.violations) expect(target !== null && rolesIn(buildWindow(v.positions)).includes(target)).toBe(false);
+      if (!target || target === 'REPLAY' || target === 'CHERRY') expect(r.violations.map(formatViolation)).toEqual([]);
     });
   }
 

@@ -110,6 +110,8 @@ export function pushSeedOf(seed: number): number {
 export function createControlSim(opts: ControlSimOptions): ControlSim {
   const rng = createRng(opts.seed);
   const pushRng = createRng(pushSeedOf(opts.seed));
+  // 制御の振り分け乱数（挟み打ちの平行／斜めスイカ）。抽選・押下位置の乱数列を変えないよう別の列にする
+  const rollRng = createRng(pushSeedOf(pushSeedOf(opts.seed)));
   const order = opts.order ?? [0, 1, 2];
   const fixed = opts.fixedPushes ?? [1, 1, 1];
   const result: ControlSimResult = {
@@ -160,7 +162,7 @@ export function createControlSim(opts: ControlSimOptions): ControlSim {
     let stopped: StopPositions = [null, null, null];
     const history: StopRecord[] = [];
     for (const reel of order) {
-      const r = decideStop({ reel, pushKoma: pushFor(reel, stopped, history, flags), stopped, flags, mode, history });
+      const r = decideStop({ reel, pushKoma: pushFor(reel, stopped, history, flags), stopped, flags, mode, history, roll: rollRng.next() });
       history.push({ reel, pushKoma: r.pushKoma, stopKoma: r.stopKoma, slip: r.slip });
       stopped = withStop(stopped, reel, r.stopKoma);
     }

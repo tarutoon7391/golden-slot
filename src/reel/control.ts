@@ -22,6 +22,8 @@ export interface StopOptions {
   /** 差し替え用（テスト・デバッグ）。rules を渡すとルールセットの選択より優先する */
   rules?: readonly StopRule[];
   reachme?: readonly ReachmePattern[];
+  /** stopSequence 用: 各リールの StopRequest.roll に渡す振り分け乱数 */
+  roll?: number;
 }
 
 /** このゲームで引き込む役。小役優先、小役が無ければボーナス */
@@ -158,7 +160,7 @@ export function stopSequence(
   const stops: StopResult[] = [];
   const history: StopRecord[] = [];
   for (const reel of order) {
-    const result = decideStop({ reel, pushKoma: pushes[reel], stopped, flags, mode, history }, options);
+    const result = decideStop({ reel, pushKoma: pushes[reel], stopped, flags, mode, history, roll: options.roll }, options);
     stops.push(result);
     history.push({ reel, pushKoma: result.pushKoma, stopKoma: result.stopKoma, slip: result.slip });
     stopped = withStop(stopped, reel, result.stopKoma);

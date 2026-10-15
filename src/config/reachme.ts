@@ -33,7 +33,9 @@ import { horizontalBonusLines, sandwichDoubleTempai } from '../reel/reachmeGen.t
  * 形が多いもの（R04 挟み打ちWテンパイ・R11 ボーナス図柄の横一直線）は src/reel/reachmeGen.ts で生成する。
  *
  * ■ 制御への効き方
- * - ボーナス非成立（default セット）: 登録したリーチ目は止めない（残りリールの押し方次第で避けられない位置も止めない）
+ * - ボーナス非成立（default セット）: 登録したリーチ目は止めない（残りリールの押し方次第で避けられない位置も止めない）。
+ *   例外は viaForPullIn の形（仕様 v1.2 P1 補足: R04・R09・R10・G02〜G04・G07・S03〜S06）で、
+ *   「それ以外では成立役を取りこぼし確定」のときだけ、成立役を引き込むために経由してよい（経由後に目押しを外せば形が残る）
  * - ボーナス成立後（BIG7 / BIGG / REG セット）: bonus にその種別を含むリーチ目は、ボーナスを引き込めないときに優先して止める。
  *   含まないリーチ目（他系）は止めない
  *
@@ -58,7 +60,7 @@ export const REACHME: readonly ReachmePattern[] = [
   // R03 中押しチスチ：中が第 1 停止で 10 番中段 → 1 確（スイカ成立でも止めない）
   { id: 'R03', label: '中押しチスチ（中第1停止で10番）', reels: [null, at(1, 10), null], when: { order: [1] }, strict: true },
   // R04 挟み打ち W テンパイ：左→右の第 2 停止で小役 2 種以上がテンパイ（生成。左→右のときだけ）
-  ...sandwichDoubleTempai(),
+  ...sandwichDoubleTempai().map((p) => ({ ...p, viaForPullIn: true })),
   // R05 右ベリベ：右 2 番中段。ベルかリプレイが揃えば小役
   { id: 'R05', label: '右ベリベ（右2番）', reels: [null, null, at(2, 2)] },
   // R06 7 中段：左 13 番中段（上段ベ・下段リ）。小役以上
@@ -68,9 +70,9 @@ export const REACHME: readonly ReachmePattern[] = [
   // R08 BAR 枠上：左 3 番中段（ベ・ス・リ）。小役以上。default では 4 番へ逃がす
   { id: 'R08', label: 'BAR枠上（左3番）', reels: [at(0, 3), null, null] },
   // R09 左 BAR 上段＋右 BAR 上段：左 4 番＋右 12 番。スイカ（右上がり代用）or リーチ目
-  { id: 'R09', label: '左BAR上段＋右BAR上段（左4番＋右12番）', reels: [at(0, 4), null, at(2, 12)] },
+  { id: 'R09', label: '左BAR上段＋右BAR上段（左4番＋右12番）', reels: [at(0, 4), null, at(2, 12)], viaForPullIn: true },
   // R10 7 下段＋中ベル中段テンパイ：左 14 番＋中ベル中段。ベル or リーチ目
-  { id: 'R10', label: '7下段＋中ベル中段テンパイ（左14番）', reels: [at(0, 14), ['*', 'bell', '*'], null] },
+  { id: 'R10', label: '7下段＋中ベル中段テンパイ（左14番）', reels: [at(0, 14), ['*', 'bell', '*'], null], viaForPullIn: true },
   // R11 ボーナス図柄の横一直線（入賞形以外）。小役が揃っていてもリーチ目（生成・strict）。
   //     7・7・BAR は REG 成立中に並べない（REG は右下がりのみ）ので BIG7・BIGG だけを対象にする
   ...horizontalBonusLines({ bonusFor: (s) => (s[0] === 'seven' && s[1] === 'seven' && s[2] === 'bar' ? ['BIG7', 'BIGG'] : undefined) }),
@@ -83,27 +85,27 @@ export const REACHME: readonly ReachmePattern[] = [
   // S02 7 下段＋右スイカ中段：左 14 番＋右 21・16・9・4 番中段（BAR 代用は除く）→ 2 確
   { id: 'S02', label: '7下段＋右スイカ中段（左14番）', reels: [at(0, 14), null, ['*', 'melon', '*']], bonus: SEVEN },
   // S03 G 上段→4 コマで 7 上段：左 押し位置 8 番 → 12 番中段（7・リ・ス）。スイカ or リーチ目
-  { id: 'S03', label: 'G上段→4コマで7上段（左8番押し→12番）', reels: [at(0, 12), null, null], when: { reels: { 0: { push: [8] } } }, bonus: SEVEN },
+  { id: 'S03', label: 'G上段→4コマで7上段（左8番押し→12番）', reels: [at(0, 12), null, null], when: { reels: { 0: { push: [8] } } }, bonus: SEVEN, viaForPullIn: true },
   // S04 左 7 上段＋右 BAR 上段：左 12 番＋右 12 番。リプレイ（中段）or リーチ目
-  { id: 'S04', label: '左7上段＋右BAR上段（左12番＋右12番）', reels: [at(0, 12), null, at(2, 12)], bonus: SEVEN },
+  { id: 'S04', label: '左7上段＋右BAR上段（左12番＋右12番）', reels: [at(0, 12), null, at(2, 12)], bonus: SEVEN, viaForPullIn: true },
   // S05 順押し 7 上段テンパイ：左 12 番＋中 16 番。リプレイ（中段）or リーチ目
-  { id: 'S05', label: '7上段テンパイ（左12番＋中16番）', reels: [at(0, 12), at(1, 16), null], bonus: SEVEN },
+  { id: 'S05', label: '7上段テンパイ（左12番＋中16番）', reels: [at(0, 12), at(1, 16), null], bonus: SEVEN, viaForPullIn: true },
   // S06 右 7 中段：右 18 番中段（チ・7・ベ）。ベル（下段・右下がり）or リーチ目
-  { id: 'S06', label: '右7中段（右18番）', reels: [null, null, at(2, 18)], bonus: SEVEN },
+  { id: 'S06', label: '右7中段（右18番）', reels: [null, null, at(2, 18)], bonus: SEVEN, viaForPullIn: true },
 
   // ---------------------------------------------------------------- G 系（BIGG）
   // G01 3 連 G：左 19 番中段 → ボーナス確定。中は 14 番中段（G 中段）へ引き込み（引き込みルールが自然にやる）
   { id: 'G01', label: '3連G（左19番）', reels: [at(0, 19), null, null], bonus: G },
   // G02 リ G G：左 20 番中段。リプレイ（上段・右下がり）or リーチ目
-  { id: 'G02', label: 'リGG（左20番）', reels: [at(0, 20), null, null], bonus: G },
+  { id: 'G02', label: 'リGG（左20番）', reels: [at(0, 20), null, null], bonus: G, viaForPullIn: true },
   // G03 G G ベル：左 18 番中段。ベル（下段・右上がり）or リーチ目
-  { id: 'G03', label: 'GGベル（左18番）', reels: [at(0, 18), null, null], bonus: G },
+  { id: 'G03', label: 'GGベル（左18番）', reels: [at(0, 18), null, null], bonus: G, viaForPullIn: true },
   // G04 BAR 上段→4 コマで G 上段：左 押し位置 4 番 → 8 番中段（G・ベ・リ）。リプレイ（下段・右上がり）or リーチ目
-  { id: 'G04', label: 'BAR上段→4コマでG上段（左4番押し→8番）', reels: [at(0, 8), null, null], when: { reels: { 0: { push: [4] } } }, bonus: G },
+  { id: 'G04', label: 'BAR上段→4コマでG上段（左4番押し→8番）', reels: [at(0, 8), null, null], when: { reels: { 0: { push: [4] } } }, bonus: G, viaForPullIn: true },
   // G05 左 G 上段＋右 BAR 上段：左 8 番＋右 12 番 → 2 確
   { id: 'G05', label: '左G上段＋右BAR上段（左8番＋右12番）', reels: [at(0, 8), null, at(2, 12)], bonus: G },
   // G06 順押し G 上段テンパイ：左 8 番＋中 13 番 → 2 確
   { id: 'G06', label: 'G上段テンパイ（左8番＋中13番）', reels: [at(0, 8), at(1, 13), null], bonus: G },
   // G07 右 G 中段：右 11 番中段（リ・G・ベ）。リプレイ（上段・右上がり）or ベル（下段・右下がり）or リーチ目
-  { id: 'G07', label: '右G中段（右11番）', reels: [null, null, at(2, 11)], bonus: G },
+  { id: 'G07', label: '右G中段（右11番）', reels: [null, null, at(2, 11)], bonus: G, viaForPullIn: true },
 ];

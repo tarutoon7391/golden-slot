@@ -1,5 +1,6 @@
 import type { ActiveFlags, BonusRole, KomaNo, ReachmePattern, ReelIndex, RuleEvaluation, StopPositions, StopRequest, StopRuleSetId } from '../shared/types.ts';
 import { LINE_LABELS } from '../config/lines.ts';
+import { MACHINE } from '../config/machine.ts';
 import { BONUS_SPECS, ROLES, patternsOf } from '../config/roles.ts';
 import { matchAll, type Role } from '../payout/judge.ts';
 import type { Outcome } from './lookahead.ts';
@@ -81,9 +82,56 @@ function reachmeHit(candidate: Candidate, ctx: StopContext, pick: (p: ReachmePat
 }
 
 // ---------------------------------------------------------------------------
+// 0. 挟み打ちの平行／斜め振り分け（スイカ）
+//    左→右の第 2 停止（右）で、スイカを平行ライン（上・中・下段）にも斜めライン（右上がり・右下がり）にも
+//    狙える候補が両方あるとき、平行を優先する（MACHINE.hasamiDiagonalMelonRate の割合で斜め）。
+//    片方しか狙えない押下位置では何もしない（引き込み優先）。順押し・中押しには関係しない。
+// ---------------------------------------------------------------------------
+const PARALLEL_LINES: ReadonlySet<string> = new Set(['top', 'middle', 'bottom']);
+
+/** 候補の窓で targetRole がまだ成立可能（open）なライン */
+function openLines(candidate: Candidate, ctx: StopContext): string[] {
+  return pullInMatches(candidate, ctx)
+    .filter((m) => m.state === 'open' && m.line)
+    .map((m) => m.line as string);
+}
+
+export const hasamiLineRule: StopRule = {
+  id: 'hasamiLine',
+  label: '挟み打ちの平行優先',
+  evaluate(candidate, ctx, remaining) {
+    const o = candidate.order;
+    if (ctx.targetRole !== 'MELON' || o.length !== 2 || o[0] !== 0 || o[1] !== 2) {
+      return { ruleId: 'hasamiLine', verdict: 'neutral', reason: '対象外（挟み打ちの右停止・スイカ成立のときだけ）' };
+    }
+    // 引き込める候補だけを見る（従来の見込みがあればそれ、全候補 0 なら救済の見込み）
+    const useValue2 = remaining.every((c) => ctx.look(c).value < VALUE_EPS);
+    const canPull = (c: Candidate) => (useValue2 ? ctx.look(c).value2 : ctx.look(c).value) >= VALUE_EPS;
+    const kind = (c: Candidate): 'parallel' | 'diagonal' | null => {
+      const lines = openLines(c, ctx);
+      if (lines.some((l) => PARALLEL_LINES.has(l))) return 'parallel';
+      return lines.length > 0 ? 'diagonal' : null;
+    };
+    const hasP = remaining.some((c) => canPull(c) && kind(c) === 'parallel');
+    const hasD = remaining.some((c) => canPull(c) && kind(c) === 'diagonal');
+    if (!hasP || !hasD) {
+      return { ruleId: 'hasamiLine', verdict: 'neutral', reason: hasP ? '平行しか狙えない' : hasD ? '斜めしか狙えない' : 'スイカを狙えない' };
+    }
+    const roll = ctx.request.roll ?? 1;
+    const want = roll < MACHINE.hasamiDiagonalMelonRate ? 'diagonal' : 'parallel';
+    const mine = canPull(candidate) ? kind(candidate) : null;
+    const name = (k: string) => (k === 'parallel' ? '平行' : '斜め');
+    if (mine === want) return { ruleId: 'hasamiLine', verdict: 'accept', reason: `${name(want)}のスイカを優先（振り分け ${roll.toFixed(2)} / 斜め率 ${MACHINE.hasamiDiagonalMelonRate}）` };
+    return { ruleId: 'hasamiLine', verdict: 'neutral', reason: mine ? `${name(mine)}は今回は選ばない（${name(want)}優先）` : 'スイカを狙えない' };
+  },
+};
+
+// ---------------------------------------------------------------------------
 // a. 引き込み
 //    残りリールを「どの順・どの位置で押されても」当選役を揃えられる見込み（lookahead の value）が
-//    いちばん高い候補を残す。見込み 1.0 = 必ず揃う。すべて 0 なら判断しない（取りこぼし）。
+//    いちばん高い候補を残す。見込み 1.0 = 必ず揃う。
+//    すべて 0（従来なら取りこぼし確定）のときは、非 strict のリーチ目形を経由してよいとした見込み（value2）で
+//    もう一度見る（仕様 v1.2 P1 補足・P8）。それでも 0 なら判断しない（取りこぼし）。
 // ---------------------------------------------------------------------------
 
 export const pullInRule: StopRule = {
@@ -92,16 +140,23 @@ export const pullInRule: StopRule = {
   evaluate(candidate, ctx, remaining) {
     if (!ctx.targetRole) return { ruleId: 'pullIn', verdict: 'neutral', reason: '引き込む役なし' };
     const label = ROLES[ctx.targetRole].label;
-    const value = ctx.look(candidate).value;
-    const best = Math.max(...remaining.map((c) => ctx.look(c).value));
-    if (best < VALUE_EPS) return { ruleId: 'pullIn', verdict: 'neutral', reason: `${label} はどの候補でも揃えられない（取りこぼし）` };
+    let value = ctx.look(candidate).value;
+    let best = Math.max(...remaining.map((c) => ctx.look(c).value));
+    let via = '';
+    if (best < VALUE_EPS) {
+      // 従来の見込みでは全候補が取りこぼし → リーチ目形を経由する見込みで救う
+      value = ctx.look(candidate).value2;
+      best = Math.max(...remaining.map((c) => ctx.look(c).value2));
+      via = '・リーチ目形を経由';
+      if (best < VALUE_EPS) return { ruleId: 'pullIn', verdict: 'neutral', reason: `${label} はどの候補でも揃えられない（取りこぼし）` };
+    }
     if (value < VALUE_EPS) return { ruleId: 'pullIn', verdict: 'reject', reason: `${label} を引き込めない` };
     const m = pullInMatches(candidate, ctx)[0];
     const where = m ? `${lineName(m.line)}（${m.pattern.id}）` : '';
     if (value >= best - VALUE_EPS) {
-      return { ruleId: 'pullIn', verdict: 'accept', reason: `${label} 引き込み見込み ${pct(value)} ${where}`.trim() };
+      return { ruleId: 'pullIn', verdict: 'accept', reason: `${label} 引き込み見込み ${pct(value)}${via} ${where}`.trim() };
     }
-    return { ruleId: 'pullIn', verdict: 'reject', reason: `${label} 引き込み見込み ${pct(value)}（他候補の方が高い）` };
+    return { ruleId: 'pullIn', verdict: 'reject', reason: `${label} 引き込み見込み ${pct(value)}${via}（他候補の方が高い）` };
   },
 };
 
@@ -160,10 +215,35 @@ export const reachmePreferRule: StopRule = {
 };
 
 /**
+ * 経由不可のリーチ目（strict な R11 横一直線・R03 中押しチスチ、および viaForPullIn でない 2 確・1 確などの形）になる候補を、
+ * 経由可の形より先に除外する。
+ * 引き込みで「リーチ目形を経由」する救済を使った後は、残りリールの押し位置によっては経由可の形を避けられない
+ * 状態に入ることがある。そのとき下の reachmeExclude は全候補を reject して無効になる（全滅なら落とさない）ので、
+ * 経由不可の形だけは別枠で先に落として、少なくとも経由可の形の方へ逃がす。
+ * 先読みの clean2 は「経由不可の形を避けられる候補が常にある」ことを保証するので、この段で全滅することはない。
+ * ボーナス成立後は他系の strict だけを見る（他系の非 strict は reachmeExclude が扱う）。
+ */
+export const reachmeHardRule: StopRule = {
+  id: 'reachmeHard',
+  label: 'リーチ目除外（経由不可）',
+  evaluate(candidate, ctx) {
+    if (ctx.reachme.length === 0) return { ruleId: 'reachmeHard', verdict: 'neutral', reason: '対象外' };
+    const bonus = ctx.request.flags.bonus;
+    // 残りをどう押されてもリーチ目にならない（成立役が必ず揃う形を含む）なら何も言わない
+    if (ctx.look(candidate).avoid) return { ruleId: 'reachmeHard', verdict: 'neutral', reason: 'リーチ目にならない' };
+    const hit = reachmeHit(candidate, ctx, (p) => isExcludedIn(p, bonus) && (!!p.strict || (!bonus && !p.viaForPullIn)));
+    if (hit) return { ruleId: 'reachmeHard', verdict: 'reject', reason: `経由不可のリーチ目「${hit.label}」になる` };
+    if (!bonus && !ctx.look(candidate).clean2) return { ruleId: 'reachmeHard', verdict: 'reject', reason: '残りリールの押し方次第で経由不可のリーチ目を避けられない' };
+    return { ruleId: 'reachmeHard', verdict: 'neutral', reason: '経由不可のリーチ目にはならない' };
+  },
+};
+
+/**
  * 止めてはいけないリーチ目（default は登録分すべて、ボーナス成立後は他系）になる候補を除外する。
  * いま一致している候補だけでなく、残りリールをどう押されても避けられない候補も落とす。
- * default では引き込みの見込み（value）の時点でこの形は数えないので、非成立時のリーチ目は絶対に出ない。
- * ボーナス成立後は引き込みの後に適用するので、ボーナスを引き込める候補を他系の形を理由に捨てることはない。
+ * 引き込みの後に適用するので、成立役を引き込める候補をリーチ目形を理由に捨てることはない。
+ * 通常は引き込みが avoid な候補しか accept しないので、ここが引き込みに負けるのは
+ * 「従来なら取りこぼし確定で、リーチ目形を経由すれば揃えられる」救済のときだけ（仕様 v1.2 P1 補足・P8）。
  */
 export const reachmeExcludeRule: StopRule = {
   id: 'reachmeExclude',
@@ -195,20 +275,26 @@ export const minSlipRule: StopRule = {
 
 /**
  * ★ 停止制御の優先順位（上から順に適用）
+ * 0. 挟み打ちの平行優先 … 左→右の右停止でスイカを平行にも斜めにも狙えるなら平行（斜めは MACHINE.hasamiDiagonalMelonRate）
  * 1. 引き込み      … 当選役を（残りをどう押されても）揃えられる見込みが最大の位置を残す
+ *                    （全候補 0 なら、非 strict のリーチ目形を経由する見込みで救う。仕様 v1.2 P1 補足・P8）
  * 2. 蹴飛ばし      … 非当選役の入賞形を作る位置・作らされる位置を落とす
- * 3. リーチ目除外  … 非成立時は登録リーチ目を、成立後は他系のリーチ目を出さない（避けられない位置も落とす）
- * 4. リーチ目優先  … ボーナス成立後に取りこぼしたら、この系のリーチ目を作れる見込みが最大の位置を残す
- * 5. スベリ最小    … それでも複数残ればスベリが小さい方
+ * 3. リーチ目除外（経由不可） … strict（R11・R03）と viaForPullIn でない形は、経由可の形より先に落とす
+ * 4. リーチ目除外  … 非成立時は登録リーチ目を、成立後は他系のリーチ目を出さない（避けられない位置も落とす）
+ * 5. リーチ目優先  … ボーナス成立後に取りこぼしたら、この系のリーチ目を作れる見込みが最大の位置を残す
+ * 6. スベリ最小    … それでも複数残ればスベリが小さい方
  *
  * 除外を優先より先に置くのは、「自系のリーチ目を作れるが、残りリールの押し方次第で他系の形を避けられない」位置を
  * 優先で拾ってしまわないため（除外が全滅するときだけ、やむなくその位置が残る）。
  *
  * 引き込みの accept は lookahead が clean（非当選役を避けられる。default ではリーチ目も）な候補にしか付かないので、
- * 引き込み→蹴飛ばし→除外 の順でも、蹴飛ばしが引き込みに負けることはなく、default の除外も負けない。
- * ボーナス成立後の他系リーチ目の除外だけは引き込みに負ける（ボーナスを揃える方を優先する）。
+ * 引き込み→蹴飛ばし→除外 の順でも、蹴飛ばしが引き込みに負けることはなく、default の除外も通常は負けない。
+ * 例外は「従来なら取りこぼし確定」の救済（value2）で、そのときだけ viaForPullIn のリーチ目形の除外が引き込みに負ける
+ * （例: スイカ成立中の挟み打ち 左4番＋右押し9番 → 右10番の W テンパイか右12番の代用テンパイ）。
+ * strict と viaForPullIn でない形（2 確・1 確など）は救済でも避ける。
+ * ボーナス成立後の他系リーチ目の除外は引き込みに負ける（ボーナスを揃える方を優先する）。
  */
-export const STOP_RULES: readonly StopRule[] = [pullInRule, kickRule, reachmeExcludeRule, reachmePreferRule, minSlipRule];
+export const STOP_RULES: readonly StopRule[] = [hasamiLineRule, pullInRule, kickRule, reachmeHardRule, reachmeExcludeRule, reachmePreferRule, minSlipRule];
 
 // ---------------------------------------------------------------------------
 // ルールセット（通常時／ボーナス種別ごと）

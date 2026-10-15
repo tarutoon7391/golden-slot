@@ -15,8 +15,15 @@ import { conditionMask, conditionsOf, conditionsOk, isExcludedIn, isPreferredIn,
  * - avoid : safe に加えて「止めてはいけないリーチ目」（isExcludedIn）も避けられる
  *           default では登録リーチ目すべて、ボーナス成立後は他系のリーチ目が対象。
  *           strict でないリーチ目は、当選小役が揃った形なら小役の出目とみなして避けない。
- * - clean : 引き込みの見込みを数えるときの足切り。default では avoid（非成立時のリーチ目は絶対に出さない）、
+ * - clean : 引き込みの見込み（value）を数えるときの足切り。default では avoid（非成立時のリーチ目を出さない）、
  *           ボーナス成立後は safe（他系のリーチ目は避けられるなら避けるが、ボーナスの引き込みを犠牲にしてまでは避けない）。
+ * - clean2 / value2 : 足切りを「safe かつ 経由不可のリーチ目を避けられる」まで緩めたときの見込み。
+ *           経由不可 = strict（R11 横一直線・R03 中押しチスチ）または viaForPullIn でない形（2 確・1 確など）。
+ *           viaForPullIn の形（W テンパイ・代用テンパイなど）を経由してでも成立役を揃える見込み。
+ *           引き込みルールは value で判断し、どの候補も value が 0（従来なら取りこぼし確定）のときだけ value2 で救う
+ *           （仕様 v1.2 P1 補足: 成立役の引き込みはリーチ目除外より優先。P8: 揃えられる組み合わせがあれば必ず揃える）。
+ *           救ったあと目押しを外すとその形が残る（ガセ）のは仕様。それ以外の場面では従来どおりリーチ目形を避ける。
+ *           ボーナス成立後は clean2 = clean = safe、value2 = value。
  * - value : 当選役を揃えられる見込み（0〜1）。残りリールの「次に押すリール × 押下位置」を等確率とみなし、
  *           各ケースで最良の停止を選んだときに「当選役が揃い、avoid な形になる」確率。
  * - reach : ボーナス成立後、この系のリーチ目（isPreferredIn）を作れる見込み（0〜1）。value と同じ考え方だが、
@@ -34,6 +41,9 @@ export interface Outcome {
   clean: boolean;
   value: number;
   reach: number;
+  /** 足切りを strict だけに緩めたときの clean / value（default のみ意味がある。成立後は clean / value と同じ） */
+  clean2: boolean;
+  value2: number;
 }
 
 export interface LookaheadQuery {
@@ -98,6 +108,7 @@ export function createLookahead(table: readonly ReachmePattern[]): Lookahead {
     const hitTarget = q.target !== null && roles.includes(q.target);
     const smallWin = hitTarget && !isBonusRole(q.target!);
     let badReach = false;
+    let hardBad = false;
     let goodReach = false;
     for (let i = 0; i < table.length; i++) {
       const b = bits[i];
@@ -105,14 +116,19 @@ export function createLookahead(table: readonly ReachmePattern[]): Lookahead {
       const p = table[i];
       if (!conditionsOk(conds, p, q.order, q.masks)) continue;
       if (isExcludedIn(p, q.bonus) && (p.strict || !smallWin)) badReach = true;
+      // 経由不可: strict は小役が揃っていても、viaForPullIn でない形は小役を取りこぼしたときに bad
+      if (isExcludedIn(p, q.bonus) && (p.strict || (!smallWin && !p.viaForPullIn))) hardBad = true;
       if (isPreferredIn(p, q.bonus)) goodReach = true;
     }
     const safe = !badRole;
     const avoid = safe && !badReach;
     const clean = q.bonus ? safe : avoid;
+    // 緩めた足切り: 経由不可の形だけを避ける。viaForPullIn の形は成立役を取りこぼしても足切りにしない
+    const clean2 = q.bonus ? safe : safe && !hardBad;
     // value / reach は他系のリーチ目を含まない形だけ数える（他系の形へ進む候補の見込みを下げる。
     // ただし足切りは clean なので、ボーナス成立後は稀な逃げ場なしの押し位置があっても候補ごと捨てない）
-    return { safe, avoid, clean, value: avoid && (q.target === null || hitTarget) ? 1 : 0, reach: avoid && goodReach ? 1 : 0 };
+    const value = avoid && (q.target === null || hitTarget) ? 1 : 0;
+    return { safe, avoid, clean, value, reach: avoid && goodReach ? 1 : 0, clean2, value2: value };
   }
 
   function query(q: LookaheadQuery): Outcome {
@@ -124,7 +140,9 @@ export function createLookahead(table: readonly ReachmePattern[]): Lookahead {
     let safe = true;
     let avoid = true;
     let clean = true;
+    let clean2 = true;
     let sumValue = 0;
+    let sumValue2 = 0;
     let sumReach = 0;
     let cases = 0;
     const remaining = ([0, 1, 2] as ReelIndex[]).filter((r) => q.positions[r] === null);
@@ -135,7 +153,9 @@ export function createLookahead(table: readonly ReachmePattern[]): Lookahead {
         let anySafe = false;
         let anyAvoid = false;
         let anyClean = false;
+        let anyClean2 = false;
         let bestValue = 0;
+        let bestValue2 = 0;
         let bestReach = 0;
         for (let slip = 0; slip <= MACHINE.maxSlip; slip++) {
           const child = query({
@@ -152,16 +172,30 @@ export function createLookahead(table: readonly ReachmePattern[]): Lookahead {
             if (child.value > bestValue) bestValue = child.value;
             if (child.reach > bestReach) bestReach = child.reach;
           }
+          if (child.clean2) {
+            anyClean2 = true;
+            if (child.value2 > bestValue2) bestValue2 = child.value2;
+          }
         }
         safe &&= anySafe;
         avoid &&= anyAvoid;
         clean &&= anyClean;
+        clean2 &&= anyClean2;
         sumValue += bestValue;
+        sumValue2 += bestValue2;
         sumReach += bestReach;
         cases++;
       }
     }
-    const result: Outcome = clean ? { safe, avoid, clean, value: sumValue / cases, reach: sumReach / cases } : { safe, avoid, clean, value: 0, reach: 0 };
+    const result: Outcome = {
+      safe,
+      avoid,
+      clean,
+      value: clean ? sumValue / cases : 0,
+      reach: clean ? sumReach / cases : 0,
+      clean2,
+      value2: clean2 ? sumValue2 / cases : 0,
+    };
     memo.set(key, result);
     return result;
   }
