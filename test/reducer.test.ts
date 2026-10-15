@@ -18,6 +18,7 @@ import {
 } from '../src/store/gameReducer.ts';
 
 const NO_EFFECT: EffectPlan = { leverSound: 'none', blackout: false, flash: 'none', lamp: 'none', bgm: 'none' };
+const NO_FLAGS = { small: null, bonus: null } as const;
 
 /** 1 ゲームを回す（BET → LEVER → 3 停止 → SETTLE）。停止は decideStop の結果をそのまま渡す */
 function playGame(s: GameState, lottery: LotteryResult, pushes: readonly [KomaNo, KomaNo, KomaNo], now: number): GameState {
@@ -231,5 +232,56 @@ describe('ゲーム進行（reducer）', () => {
     expect(restored.stopAt).toEqual([1500, null, null]);
     const idle = normalizeRestored({ ...base, lastLeverAt: 5 }, 99999);
     expect(idle.lastLeverAt).toBe(-Infinity);
+  });
+});
+
+describe('ロゴランプとリールフラッシュ（フェーズ8b・器）', () => {
+  const base = createInitialState(1, 1, 0);
+  const stopReel = (s: GameState, reel: ReelIndex, now: number): GameState =>
+    gameReducer(s, { type: 'STOP', result: decideStop({ reel, pushKoma: 5, stopped: s.positions, flags: NO_FLAGS, mode: 'normal' }), now });
+
+  it('初期状態はフラッシュなし・全消灯。LEVER で省略すれば発生なし・0 個', () => {
+    expect(base.flash).toBeNull();
+    expect(base.lamp).toEqual({ count: 0, lit: [false, false, false] });
+    let s = gameReducer(base, { type: 'BET' });
+    s = gameReducer(s, { type: 'LEVER', lottery: NO_FLAGS, carriedBonus: null, effect: NO_EFFECT, now: 1000 });
+    expect(s.flash).toBeNull();
+    expect(s.lamp.count).toBe(0);
+    s = stopReel(s, 0, 2000);
+    expect(s.lamp.lit).toEqual([false, false, false]);
+  });
+
+  it('点灯数 2 で挟み打ち（左→右→中）: GO → EN が点き、LD は暗いまま。SETTLE 後も保持し、次の LEVER で全消灯', () => {
+    let s = gameReducer(base, { type: 'BET' });
+    s = gameReducer(s, { type: 'LEVER', lottery: NO_FLAGS, carriedBonus: null, effect: NO_EFFECT, now: 1000, flash: { id: 'MEL' }, lampPlan: { count: 2 } });
+    expect(s.flash).toEqual({ id: 'MEL' });
+    expect(s.lamp).toEqual({ count: 2, lit: [false, false, false] });
+    s = stopReel(s, 0, 2000);
+    expect(s.lamp.lit).toEqual([true, false, false]);
+    s = stopReel(s, 2, 2100);
+    expect(s.lamp.lit).toEqual([true, false, true]);
+    s = stopReel(s, 1, 2200);
+    expect(s.lamp.lit).toEqual([true, false, true]);
+    expect(s.phase).toBe('payout');
+    s = gameReducer(s, { type: 'SETTLE' });
+    expect(s.lamp.lit).toEqual([true, false, true]);
+    expect(s.flash).toEqual({ id: 'MEL' });
+    // 次のレバーで全消灯・フラッシュも消える
+    s = s.phase === 'idle' ? gameReducer(s, { type: 'BET' }) : s;
+    s = gameReducer(s, { type: 'LEVER', lottery: NO_FLAGS, carriedBonus: null, effect: NO_EFFECT, now: 10000 });
+    expect(s.lamp).toEqual({ count: 0, lit: [false, false, false] });
+    expect(s.flash).toBeNull();
+  });
+
+  it('点灯数 3 なら 3 つとも点き、点灯数 1 なら第 1 停止のリールだけ', () => {
+    let s = gameReducer(base, { type: 'BET' });
+    s = gameReducer(s, { type: 'LEVER', lottery: NO_FLAGS, carriedBonus: null, effect: NO_EFFECT, now: 1000, lampPlan: { count: 3 } });
+    s = stopReel(stopReel(stopReel(s, 1, 2000), 0, 2100), 2, 2200);
+    expect(s.lamp.lit).toEqual([true, true, true]);
+
+    let t = gameReducer(base, { type: 'BET' });
+    t = gameReducer(t, { type: 'LEVER', lottery: NO_FLAGS, carriedBonus: null, effect: NO_EFFECT, now: 1000, lampPlan: { count: 1 } });
+    t = stopReel(stopReel(stopReel(t, 1, 2000), 0, 2100), 2, 2200);
+    expect(t.lamp.lit).toEqual([false, true, false]);
   });
 });

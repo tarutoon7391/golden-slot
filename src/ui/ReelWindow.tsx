@@ -1,9 +1,10 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
-import type { GameState, LineId, ReelIndex } from '../shared/types.ts';
+import type { FlashRequest, GameState, ReelIndex } from '../shared/types.ts';
 import { REELS } from '../config/reels.ts';
 import { SYMBOLS } from '../config/symbols.ts';
-import { LINES } from '../config/lines.ts';
+import { FLASHES, flashCellDelays, flashTotalMs } from '../config/flashes.ts';
 import { STRIP_COPIES, glowAt, reelPosAt, translatePercent } from './reelMath.ts';
+import { useDeadlinePassed } from './useDeadline.ts';
 
 /**
  * 3 リール窓
@@ -13,15 +14,43 @@ import { STRIP_COPIES, glowAt, reelPosAt, translatePercent } from './reelMath.ts
  * 描画は requestAnimationFrame で transform を直接書き換える（React の再描画は使わない）。
  */
 
-interface Props {
-  state: GameState;
-  /** 入賞ラインを光らせる（払い出し表示中） */
-  highlightLines?: readonly LineId[];
-  /** デバッグ: 回転アニメーションを省き、停止位置をそのまま出す */
-  instant?: boolean;
+/** 画面に出すリールフラッシュ（どれを・いつから） */
+export interface FlashShow {
+  request: FlashRequest;
+  /** 光り始める時刻（ms）。ゲームでは第 3 停止の直後 */
+  startAt: number;
 }
 
-export function ReelWindow({ state, highlightLines = [], instant = false }: Props) {
+interface Props {
+  state: GameState;
+  /** デバッグ: 回転アニメーションを省き、停止位置をそのまま出す */
+  instant?: boolean;
+  /** リールフラッシュ。null なら出さない */
+  flash?: FlashShow | null;
+}
+
+/**
+ * リールフラッシュ（フェーズ8b）
+ * 9 コマの上に光のマスを重ね、config/flashes.ts の順番と時間をインラインの animation-delay / duration で渡す。
+ * JS がするのはクラスの付け外し（startAt で出し、flashTotalMs 後に消す）だけ。アニメーションは CSS。
+ * 出すタイミングは呼び出し側（Cabinet）が決める。ゲームでは第 3 停止の直後、デバッグの試し撃ちは押した瞬間。
+ */
+function FlashOverlay({ show }: { show: FlashShow }) {
+  const def = FLASHES[show.request.id];
+  const started = useDeadlinePassed(show.startAt);
+  const done = useDeadlinePassed(show.startAt + flashTotalMs(def));
+  if (!started || done) return null;
+  const delays = flashCellDelays(def);
+  return (
+    <div className={`flash-grid flash-${def.id}`} aria-hidden="true">
+      {delays.map((d, i) => (
+        <div key={i} className={d === null ? 'flash-cell' : 'flash-cell lit'} style={d === null ? undefined : { animationDelay: `${d}ms`, animationDuration: `${def.cellMs}ms` }} />
+      ))}
+    </div>
+  );
+}
+
+export function ReelWindow({ state, instant = false, flash = null }: Props) {
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
 
   useEffect(() => {
@@ -70,13 +99,7 @@ export function ReelWindow({ state, highlightLines = [], instant = false }: Prop
           </div>
         </div>
       ))}
-      <svg className="line-overlay" viewBox="0 0 300 180" preserveAspectRatio="none" aria-hidden="true">
-        {LINES.map((line) => {
-          const y = (row: number) => 30 + row * 60;
-          const points = `0,${y(line.rows[0])} 50,${y(line.rows[0])} 150,${y(line.rows[1])} 250,${y(line.rows[2])} 300,${y(line.rows[2])}`;
-          return <polyline key={line.id} points={points} className={`payline${highlightLines.includes(line.id) ? ' hit' : ''}`} />;
-        })}
-      </svg>
+      {flash && <FlashOverlay key={`${flash.request.id}-${flash.startAt}`} show={flash} />}
     </div>
   );
 }

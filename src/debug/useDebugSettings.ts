@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import type { KomaNo, LotteryRowKey, Setting } from '../shared/types.ts';
+import type { FlashId, KomaNo, LampCount, LotteryRowKey, Setting } from '../shared/types.ts';
 import { rowToResult } from '../lottery/lottery.ts';
 import type { GameOverrides } from '../store/useGame.ts';
 import { LOGO_ALL_OFF, type LogoLamps } from '../ui/logoLamps.ts';
@@ -23,8 +23,14 @@ export interface DebugSettings {
   fixedSetting: Setting | null;
   /** 回転アニメーションと待ち時間を飛ばす */
   skipAnimation: boolean;
-  /** ロゴパネルの点灯（GO / LD / EN ごと。見た目の確認用。ゲーム本体はまだ切り替えない） */
+  /** ロゴランプを追加で点ける（GO / LD / EN ごと。ゲームの点灯に OR する。見た目の確認用） */
   logoLamps: LogoLamps;
+  /** フラッシュの試し撃ち（押した時刻をキーにして毎回出し直す） */
+  testFlash: { id: FlashId; at: number } | null;
+  /** 次のレバーのリールフラッシュ。'auto' は通常（8b では発生なし）、'none' は強制的に発生なし */
+  nextFlash: FlashId | 'none' | 'auto';
+  /** 次のレバーのロゴランプ点灯数。'auto' は通常（8b では 0 個） */
+  nextLampCount: LampCount | 'auto';
 }
 
 export const DEFAULT_DEBUG_SETTINGS: DebugSettings = {
@@ -34,6 +40,9 @@ export const DEFAULT_DEBUG_SETTINGS: DebugSettings = {
   fixedSetting: null,
   skipAnimation: false,
   logoLamps: LOGO_ALL_OFF,
+  testFlash: null,
+  nextFlash: 'auto',
+  nextLampCount: 'auto',
 };
 
 /** 設定 → GameOverrides（純粋関数・テスト用に分離） */
@@ -47,6 +56,8 @@ export function buildOverrides(settings: DebugSettings, onForceConsumed: () => v
     pushKoma: (_state, reel) => settings.pushes[reel],
     fixedSetting: () => settings.fixedSetting,
     skipDelays: () => settings.skipAnimation,
+    nextFlash: () => (settings.nextFlash === 'auto' ? undefined : settings.nextFlash === 'none' ? null : { id: settings.nextFlash }),
+    nextLampPlan: () => (settings.nextLampCount === 'auto' ? undefined : { count: settings.nextLampCount }),
   };
 }
 

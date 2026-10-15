@@ -11,7 +11,7 @@ export const MACHINE = {
   /** サブタイトル（空でもよい） */
   subtitle: 'A-TYPE',
   /** バージョン表記 */
-  version: '0.7.0',
+  version: '0.8.0',
   /** リール本数（Aタイプは3本固定） */
   reelCount: 3,
   /** 1リールのコマ数 */
@@ -24,6 +24,11 @@ export const MACHINE = {
   minGameIntervalMs: 4100,
   /** 最大スベリコマ数（押下位置から 0〜4 コマ） */
   maxSlip: 4,
+  /**
+   * 挟み打ち（左→右）の右停止で、スイカを平行（上・中・下段）にも斜め（右上がり・右下がり）にも狙える押下位置のとき、
+   * 斜めを選ぶ割合。残りは平行。どちらか一方しか狙えない位置では関係ない（引き込みを優先する）
+   */
+  hasamiDiagonalMelonRate: 0.1,
   /** リール回転速度（rpm・約80相当） */
   reelRpm: 80,
 
@@ -46,6 +51,6 @@ export const MACHINE = {
   diffSeriesMax: 600,
   /** localStorage のキー */
   storageKey: 'golden-slot:save',
-  /** 保存データのバージョン（形式を変えたら上げる） */
-  saveVersion: 2,
+  /** 保存データのバージョン（形式を変えたら上げる。古い版からの移行は store/storage.ts） */
+  saveVersion: 3,
 } as const;

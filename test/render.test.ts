@@ -51,17 +51,20 @@ describe('画面の描画', () => {
     expect((all.match(/class="logo-seg on"/g) ?? []).length).toBe(3);
   });
 
+  it('ロゴランプはゲーム状態の点灯（左=GO, 中=LD, 右=EN）に従い、デバッグの追加点灯を OR する', () => {
+    const lit: GameState = { ...base, lamp: { count: 2, lit: [true, false, true] } };
+    const html = renderToString(createElement(Cabinet, { api: fakeApi(lit) }));
+    expect(html).toContain('GO点灯・LD消灯・EN点灯');
+    const extra = renderToString(createElement(Cabinet, { api: fakeApi(lit), logoLamps: ['off', 'on', 'off'] }));
+    expect(extra).toContain('GO点灯・LD点灯・EN点灯');
+  });
+
   it('設定発表画面: 設定と推測が出る', () => {
     const ended: GameState = { ...base, phase: 'ended' };
     const html = renderToString(createElement(ResultScreen, { state: ended, onNewGame: () => {} }));
     expect(html).toContain('設定発表');
     expect(html).toContain('設定 <!-- -->2');
     expect(html).toContain('データからの推測');
-  });
-
-  it('リール窓は入賞ラインの強調クラスを付けられる', () => {
-    const html = renderToString(createElement(ReelWindow, { state: base, highlightLines: ['middle'] }));
-    expect((html.match(/payline hit/g) ?? []).length).toBe(1);
   });
 
   it('赤7 と単独 G のコマに発光クラスが付く（左リール: 7 が 1 個・単独 G が 1 個、3 周で 6 個）', () => {

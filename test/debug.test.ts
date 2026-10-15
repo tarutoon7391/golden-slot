@@ -45,6 +45,18 @@ describe('デバッグ設定 → GameOverrides', () => {
     expect(none.nextLottery!(state)).toBeNull();
   });
 
+  it('リールフラッシュと点灯数の指定: auto は undefined（通常）、none は null、ID と個数はそのまま', () => {
+    const auto = buildOverrides(DEFAULT_DEBUG_SETTINGS, () => {});
+    expect(auto.nextFlash!(state)).toBeUndefined();
+    expect(auto.nextLampPlan!(state)).toBeUndefined();
+    const none = buildOverrides({ ...DEFAULT_DEBUG_SETTINGS, nextFlash: 'none', nextLampCount: 0 }, () => {});
+    expect(none.nextFlash!(state)).toBeNull();
+    expect(none.nextLampPlan!(state)).toEqual({ count: 0 });
+    const forced = buildOverrides({ ...DEFAULT_DEBUG_SETTINGS, nextFlash: 'CCHER', nextLampCount: 3 }, () => {});
+    expect(forced.nextFlash!(state)).toEqual({ id: 'CCHER' });
+    expect(forced.nextLampPlan!(state)).toEqual({ count: 3 });
+  });
+
   it('押下位置・設定・スキップがそのまま渡る', () => {
     const o = buildOverrides({ ...DEFAULT_DEBUG_SETTINGS, pushes: [5, null, 21], fixedSetting: 6, skipAnimation: true }, () => {});
     expect(o.pushKoma!(state, 0)).toBe(5);

@@ -1,5 +1,6 @@
 import type { GameState } from '../shared/types.ts';
 import { MACHINE } from '../config/machine.ts';
+import { lampOff } from './gameReducer.ts';
 
 /**
  * localStorage への保存・復元
@@ -46,15 +47,24 @@ export function serialize(state: GameState, now = Date.now()): string {
   return JSON.stringify(file);
 }
 
+/**
+ * 古い版の保存データを今の形に直す。直せない版はそのまま返す（呼び出し側で null になる）
+ * - v2 → v3: リールフラッシュ（flash）とロゴランプ（lamp）を追加（フェーズ8b）。足りない項目は既定値で埋める
+ */
+function migrate(file: Partial<SaveFile>): Partial<SaveFile> {
+  if (file.version === 2) return { ...file, version: 3 };
+  return file;
+}
+
 export function deserialize(text: string | null): GameState | null {
   if (!text) return null;
   try {
-    const file = JSON.parse(text) as Partial<SaveFile>;
+    const file = migrate(JSON.parse(text) as Partial<SaveFile>);
     if (file.version !== MACHINE.saveVersion) return null;
     if (!isGameStateLike(file.state)) return null;
     // -Infinity は JSON にできず null になるので戻す
     const s = file.state as GameState & { lastLeverAt: number | null };
-    return { ...s, lastLeverAt: s.lastLeverAt ?? -Infinity };
+    return { ...s, lastLeverAt: s.lastLeverAt ?? -Infinity, flash: s.flash ?? null, lamp: s.lamp ?? lampOff() };
   } catch {
     return null;
   }

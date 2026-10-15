@@ -276,25 +276,39 @@
 .reel::after {
   bottom: 0;
 }
-.line-overlay {
+/* リールフラッシュ（フェーズ8b）。9 コマの上に重ねる白〜金の光。順番と時間は config/flashes.ts からインラインで渡る */
+.flash-grid {
   position: absolute;
   inset: 4px;
-  width: calc(100% - 8px);
-  height: calc(100% - 8px);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 4px;
   pointer-events: none;
 }
-.payline {
-  fill: none;
-  stroke: transparent;
-  stroke-width: 3;
+.flash-cell {
+  border-radius: 3px;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.95) 0%, rgba(255, 240, 190, 0.85) 45%, rgba(255, 215, 110, 0.2) 100%);
+  box-shadow: 0 0 10px rgba(255, 230, 150, 0.8);
 }
-.payline.hit {
-  stroke: var(--gold-light);
-  stroke-width: 4;
-  filter: drop-shadow(0 0 4px var(--gold));
-  animation: payline-blink 0.25s steps(1) infinite;
+.flash-cell.lit {
+  animation-name: flash-cell-glow;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
 }
-@keyframes payline-blink {
+@keyframes flash-cell-glow {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes blink {
   50% {
     opacity: 0.2;
   }
@@ -361,7 +375,7 @@
 .wait-tag {
   color: #000;
   background: var(--gold);
-  animation: payline-blink 0.5s steps(1) infinite;
+  animation: blink 0.5s steps(1) infinite;
 }
 .bonus-bar {
   display: flex;

@@ -212,6 +212,11 @@ export interface StopRequest {
    * 省略すると stopped から「左→中→右の順で止まった・スベリ条件は不成立」として扱う。
    */
   history?: readonly StopRecord[];
+  /**
+   * 制御の振り分け用乱数（0 以上 1 未満）。挟み打ちの平行／斜めスイカの振り分け（MACHINE.hasamiDiagonalMelonRate）に使う。
+   * 省略時は振り分けなし（平行優先で固定）。本番は useGame が getRng() から渡す
+   */
+  roll?: number;
 }
 
 /** ルール 1 本の判定結果 */
@@ -254,8 +259,33 @@ export interface StopResult extends StopRecord {
 /** レバーオン時の予告音 */
 export type LeverSoundId = 'none' | 'normal' | 'notice';
 
-/** リールフラッシュのパターン（CSS クラス名に対応） */
-export type FlashId = 'none' | 'bonusConfirm';
+/** ボーナス図柄が揃った瞬間のフラッシュ（窓全体。CSS クラス名に対応） */
+export type BonusFlashId = 'none' | 'bonusConfirm';
+
+/**
+ * リールフラッシュ 6 種（フェーズ8b・小役の予告。動きと時間は config/flashes.ts、見た目は cabinet.css）
+ * REP=リプレイF, BELL=ベルF, MEL=スイカF, CHER=チェリーF, CMEL=チャンススイカF, CCHER=チャンスチェリーF
+ */
+export type FlashId = 'REP' | 'BELL' | 'MEL' | 'CHER' | 'CMEL' | 'CCHER';
+
+/** レバーON時に決めるフラッシュ要求。発生なしは null で表す */
+export interface FlashRequest {
+  id: FlashId;
+}
+
+/** ロゴランプ（GO / LD / EN）の点灯数 */
+export type LampCount = 0 | 1 | 2 | 3;
+
+/** レバーON時に決めるロゴランプの点灯計画。第 k 停止（k ≤ count）で、そのとき止めたリールのランプが点く */
+export interface LampPlan {
+  count: LampCount;
+}
+
+/** ロゴランプの状態。lit は [左=GO, 中=LD, 右=EN]。次のレバーONで全消灯 */
+export interface LampState {
+  count: LampCount;
+  lit: readonly [boolean, boolean, boolean];
+}
 
 /** 告知ランプ */
 export type LampId = 'none' | 'on';
@@ -272,7 +302,7 @@ export interface EffectPlan {
   leverSound: LeverSoundId;
   /** リール消灯（true で窓を暗くする CSS クラスを付ける） */
   blackout: boolean;
-  flash: FlashId;
+  flash: BonusFlashId;
   lamp: LampId;
   bgm: BgmId;
   /** 演出期待度テーブルで使ったキー（デバッグ表示用） */
@@ -360,6 +390,13 @@ export interface GameState {
   stops: (StopResult | null)[];
   payout: PayoutResult | null;
   effect: EffectPlan | null;
+  /**
+   * 今ゲームのリールフラッシュ（レバーON時に決め、第 3 停止の直後に画面が出す。null は発生なし）。
+   * フェーズ8b は器だけで、抽選との接続はフェーズ8c
+   */
+  flash: FlashRequest | null;
+  /** ロゴランプ（GO / LD / EN）。点灯数はレバーON時に決め、停止ごとに 1 個ずつ点く */
+  lamp: LampState;
   counters: Counters;
   /** 前回レバーオン時刻（ウェイト制御用・ms） */
   lastLeverAt: number;
@@ -449,6 +486,12 @@ export interface ReachmePattern {
    * 省略（false）なら「○○orリーチ目」＝当選小役が揃った形は小役の出目として許す。
    */
   strict?: boolean;
+  /**
+   * true なら、成立役を引き込むためにこの形を経由してよい（仕様 v1.2 P1 補足の一覧: R04・R09・R10・G02〜G04・G07・S03〜S06）。
+   * 従来なら取りこぼし確定の場面だけで使われ、その後に目押しを外すと形だけが残る（「小役が揃わなければボーナス」は目押し前提）。
+   * 省略（false）の形は、ボーナス非成立では引き込みのためでも止めない（2 確・1 確の形など）。strict とは独立。
+   */
+  viaForPullIn?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -469,7 +512,7 @@ export type EffectWeightTable<T extends string> = Record<EffectSituation, Partia
 export interface EffectTable {
   leverSound: EffectWeightTable<LeverSoundId>;
   /** ボーナス図柄が揃った瞬間に出すフラッシュ */
-  bonusConfirmFlash: FlashId;
+  bonusConfirmFlash: BonusFlashId;
   /** ボーナス中の BGM */
   bgm: Record<BonusRole, BgmId>;
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, type RefObject } from 'react';
-import type { GameState, KomaNo, LotteryResult, ReelIndex, Setting } from '../shared/types.ts';
+import type { FlashRequest, GameState, KomaNo, LampPlan, LotteryResult, ReelIndex, Setting } from '../shared/types.ts';
 import { createRng, getRng, setGlobalRng } from '../shared/rng.ts';
 import { MACHINE } from '../config/machine.ts';
 import { tableFor } from '../config/probability.ts';
@@ -32,6 +32,13 @@ export interface GameOverrides {
   fixedSetting?: () => GameState['setting'] | null;
   /** 待ち時間（ウェイト・回転開始・払い出し表示）をすべて飛ばす（回転スキップ用） */
   skipDelays?: () => boolean;
+  /**
+   * 次ゲームのリールフラッシュを指定する。
+   * undefined なら通常（フェーズ8c の抽選。8b では発生なし）、null なら強制的に発生なし
+   */
+  nextFlash?: (state: GameState) => FlashRequest | null | undefined;
+  /** 次ゲームのロゴランプ点灯数を指定する。undefined なら通常（8b では 0 個） */
+  nextLampPlan?: (state: GameState) => LampPlan | undefined;
 }
 
 export interface GameApi {
@@ -119,8 +126,13 @@ export function useGame(overridesRef?: RefObject<GameOverrides | undefined>): Ga
     // 2. 演出計画（結果を変えない）
     const effect = planLeverEffect(situationOf(lottery, s.carriedBonus), rng);
     playLeverSound(effect.leverSound);
+    // 3. リールフラッシュとロゴランプの点灯数。フェーズ8b は器だけなので、デバッグの指定がなければ出さない
+    //    （フェーズ8c で「通常」のときに effects/decideEffects を呼ぶ。演出は抽選結果を読むだけで結果を変えない）
+    const forcedFlash = overridesRef?.current?.nextFlash?.(s);
+    const flash: FlashRequest | null = forcedFlash === undefined ? null : forcedFlash;
+    const lampPlan: LampPlan = overridesRef?.current?.nextLampPlan?.(s) ?? { count: 0 };
     const skipWait = overridesRef?.current?.skipDelays?.() ?? false;
-    dispatch({ type: 'LEVER', lottery, carriedBonus, effect, now: now(), skipWait });
+    dispatch({ type: 'LEVER', lottery, carriedBonus, effect, now: now(), skipWait, flash, lampPlan });
   }, [overridesRef]);
 
   const stop = useCallback(
@@ -134,7 +146,9 @@ export function useGame(overridesRef?: RefObject<GameOverrides | undefined>): Ga
       // 押下コマ番号は時刻から（デバッグの指定があればそれを使う）
       const pushKoma = overridesRef?.current?.pushKoma?.(s, reel) ?? pushKomaAt(s, reel, t);
       const flags = toActiveFlags(s.lottery, s.carriedBonus);
-      const result = decideStop({ reel, pushKoma, stopped: s.positions, flags, mode: s.mode, history: historyFromStops(s.stops, s.stopAt) });
+      // 制御の振り分け乱数（挟み打ちの平行／斜めスイカ）。乱数はアプリ共有の getRng()
+      const roll = getRng().next();
+      const result = decideStop({ reel, pushKoma, stopped: s.positions, flags, mode: s.mode, history: historyFromStops(s.stops, s.stopAt), roll });
       playStopSound();
       dispatch({ type: 'STOP', result, now: t });
     },

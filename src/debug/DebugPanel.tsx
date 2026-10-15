@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BonusRole, GameState, KomaNo, ReelIndex, Setting, SmallRole, StopResult, SymbolId } from '../shared/types.ts';
+import type { BonusRole, FlashId, GameState, KomaNo, LampCount, ReelIndex, Setting, SmallRole, StopResult, SymbolId } from '../shared/types.ts';
+import { FLASHES, FLASH_IDS } from '../config/flashes.ts';
 import { MACHINE } from '../config/machine.ts';
 import { KOMA_COUNT } from '../config/reels.ts';
 import { LINE_LABELS } from '../config/lines.ts';
@@ -24,6 +25,7 @@ import type { DebugControl, ForceKey } from './useDebugSettings.ts';
  * - 設定固定 / 乱数シード固定
  * - 次ゲームの当選役を強制
  * - 押下位置を 1〜21 で指定、回転アニメーションのスキップ
+ * - 演出（フェーズ8b）: フラッシュの試し撃ち・次のレバーのフラッシュと点灯数の指定・ランプの追加点灯・直近ゲームの表示
  * - 停止制御の候補（ルール別の accept / reject / neutral と理由）
  * - リーチ目の一致表示と、今の出目を reachme.ts の書式でコピー
  * - 制御込みシミュレーション（理論値と並べて表示）
@@ -61,6 +63,7 @@ export function DebugPanel({ api, debug }: Props) {
       <h2 className="dbg-title">DEBUG</h2>
       <StateSection state={state} />
       <ForceSection debug={debug} />
+      <EffectSection api={api} debug={debug} />
       <SettingSection api={api} debug={debug} />
       <PushSection debug={debug} />
       <CandidatesSection state={state} />
@@ -210,20 +213,98 @@ function PushSection({ debug }: { debug: DebugControl }) {
         <input type="checkbox" checked={settings.skipAnimation} onChange={(e) => update({ skipAnimation: e.target.checked })} />
         回転アニメーション・ウェイト・払い出し表示を飛ばす
       </label>
+      <p className="dbg-note">空欄のリールは押した時刻から中段のコマ番号を求める（通常どおり）。指定したコマ番号が中段にある状態で押したことになり、そこから制御でスベる。</p>
+    </details>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 演出（リールフラッシュ・ロゴランプ）フェーズ8b
+// ---------------------------------------------------------------------------
+const LAMP_COUNTS: readonly LampCount[] = [0, 1, 2, 3];
+
+function EffectSection({ api, debug }: { api: GameApi; debug: DebugControl }) {
+  const { state } = api;
+  const { settings, update } = debug;
+  // 「この指定でレバー」: idle なら MAXBET してから、bet になった時点でレバーを叩く
+  const pendingLever = useRef(false);
+  useEffect(() => {
+    if (pendingLever.current && state.phase === 'bet') {
+      pendingLever.current = false;
+      api.lever();
+    }
+  }, [state.phase, api]);
+  const leverNow = () => {
+    if (state.phase === 'bet') api.lever();
+    else if (state.phase === 'idle') {
+      pendingLever.current = true;
+      api.maxBet();
+    }
+  };
+  const l = state.lottery;
+  const bonusFlag = state.carriedBonus ?? l?.bonus ?? null;
+  const litText = MACHINE.logoSegments.map((seg, i) => `${seg}${state.lamp.lit[i] ? '●' : '○'}`).join(' ');
+  return (
+    <details className="dbg-section" open>
+      <summary>演出（リールフラッシュ・ロゴランプ）</summary>
+      <dl className="dbg-grid">
+        <div>
+          <dt>直近ゲーム</dt>
+          <dd>{l ? `成立役: ${roleLabel(l.small)} ・ ボーナスフラグ: ${roleLabel(bonusFlag)} ・ フラッシュ: ${state.flash ? FLASHES[state.flash.id].label : 'なし'} ・ 点灯数: ${state.lamp.count} ・ 点灯中: ${litText}` : '-'}</dd>
+        </div>
+      </dl>
       <div className="dbg-row-flex">
-        <span>ロゴパネル点灯（見た目の確認用。点灯条件は後のフェーズ）:</span>
+        <span>フラッシュ試し撃ち:</span>
+        {FLASH_IDS.map((id) => (
+          <button key={id} type="button" className="btn-text" onClick={() => update({ testFlash: { id, at: Date.now() } })}>
+            {FLASHES[id].label}
+          </button>
+        ))}
+      </div>
+      <div className="dbg-row-flex">
+        <label>
+          次のレバーのフラッシュ
+          <select value={settings.nextFlash} onChange={(e) => update({ nextFlash: e.target.value as FlashId | 'none' | 'auto' })}>
+            <option value="auto">通常（8b では発生なし）</option>
+            <option value="none">なし（強制）</option>
+            {FLASH_IDS.map((id) => (
+              <option key={id} value={id}>
+                {FLASHES[id].label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          点灯数
+          <select value={settings.nextLampCount} onChange={(e) => update({ nextLampCount: e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as LampCount) })}>
+            <option value="auto">通常（8b では 0）</option>
+            {LAMP_COUNTS.map((n) => (
+              <option key={n} value={n}>
+                {n} 個
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className="btn-text" onClick={leverNow} disabled={state.phase !== 'idle' && state.phase !== 'bet'}>
+          この指定でレバー
+        </button>
+      </div>
+      <div className="dbg-row-flex">
+        <span>ランプを追加で点ける（ゲームの点灯に OR）:</span>
         {MACHINE.logoSegments.map((seg, i) => (
           <label key={seg} className="dbg-check">
             <input
               type="checkbox"
               checked={settings.logoLamps[i] === 'on'}
-              onChange={(e) => update({ logoLamps: settings.logoLamps.map((l, j) => (j === i ? (e.target.checked ? 'on' : 'off') : l)) })}
+              onChange={(e) => update({ logoLamps: settings.logoLamps.map((lamp, j) => (j === i ? (e.target.checked ? 'on' : 'off') : lamp)) })}
             />
             {seg}
           </label>
         ))}
       </div>
-      <p className="dbg-note">空欄のリールは押した時刻から中段のコマ番号を求める（通常どおり）。指定したコマ番号が中段にある状態で押したことになり、そこから制御でスベる。</p>
+      <p className="dbg-note">
+        フラッシュと点灯数の指定は「通常」に戻すまで毎ゲーム適用。ランプは第 k 停止（k ≤ 点灯数）で止めたリールのものが点き、次のレバーで全消灯。発生率の抽選はフェーズ8c。
+      </p>
     </details>
   );
 }

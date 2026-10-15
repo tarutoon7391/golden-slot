@@ -4,6 +4,7 @@ import { MAX_PAYOUT_PER_GAME, ROLES, WIN_PATTERNS, BONUS_SPECS, patternsOf } fro
 import { NORMAL_TABLES, BONUS_TABLE, BONUS_TOTAL, SETTING_WEIGHTS, tableFor } from '../src/config/probability.ts';
 import { REACHME } from '../src/config/reachme.ts';
 import { EFFECTS } from '../src/config/effects.ts';
+import { FLASHES, FLASH_IDS, flashCellDelays, flashTotalMs } from '../src/config/flashes.ts';
 import { SYMBOLS, SYMBOL_IDS } from '../src/config/symbols.ts';
 import type { LotteryTable, Setting } from '../src/shared/types.ts';
 import { ROW_KEYS, bonusWeightOf } from '../src/lottery/lottery.ts';
@@ -164,5 +165,43 @@ describe('リーチ目・演出・図柄', () => {
   it('図柄 7 種すべてに画像パスがある', () => {
     expect(SYMBOL_IDS).toHaveLength(7);
     for (const id of SYMBOL_IDS) expect(SYMBOLS[id].imagePath).toMatch(/^\/symbols\/.+\.(svg|png)$/);
+  });
+});
+
+describe('リールフラッシュ（config/flashes.ts）', () => {
+  it('6 種すべてに定義があり、時間は正、コマは窓の範囲内で 1 回ずつ', () => {
+    expect(FLASH_IDS).toHaveLength(6);
+    for (const id of FLASH_IDS) {
+      const def = FLASHES[id];
+      expect(def.id).toBe(id);
+      expect(def.durationMs).toBeGreaterThan(0);
+      expect(def.cellMs).toBeGreaterThan(0);
+      expect(def.steps.length).toBeGreaterThan(0);
+      const seen = new Set<string>();
+      for (const step of def.steps) {
+        expect(step.length).toBeGreaterThan(0);
+        for (const [reel, row] of step) {
+          expect([0, 1, 2]).toContain(reel);
+          expect([0, 1, 2]).toContain(row);
+          expect(seen.has(`${reel}-${row}`)).toBe(false);
+          seen.add(`${reel}-${row}`);
+        }
+      }
+      expect(flashTotalMs(def)).toBeGreaterThanOrEqual(def.cellMs);
+    }
+  });
+
+  it('コマごとの光り始めは行優先 9 個。ベルF は中央だけ光らず、チェリーF は左リールの 3 コマだけ', () => {
+    const bell = flashCellDelays(FLASHES.BELL);
+    expect(bell).toHaveLength(9);
+    expect(bell[4]).toBeNull();
+    expect(bell.filter((d) => d !== null)).toHaveLength(8);
+    expect(bell[0]).toBe(0);
+    const cher = flashCellDelays(FLASHES.CHER);
+    expect(cher.map((d) => d !== null)).toEqual([true, false, false, true, false, false, true, false, false]);
+    expect(cher[0]! < cher[3]! && cher[3]! < cher[6]!).toBe(true);
+    // リプレイF は下段 → 上段なので下段が先
+    const rep = flashCellDelays(FLASHES.REP);
+    expect(rep[6]! < rep[3]! && rep[3]! < rep[0]!).toBe(true);
   });
 });

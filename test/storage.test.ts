@@ -25,6 +25,15 @@ describe('保存・復元', () => {
     expect(loaded?.lastLeverAt).toBe(-Infinity);
   });
 
+  it('v2 の保存データは v3 に移行され、フラッシュなし・ランプ全消灯で埋まる', () => {
+    const { flash: _f, lamp: _l, ...old } = state;
+    const loaded = deserialize(JSON.stringify({ version: 2, savedAt: 0, state: old }));
+    expect(MACHINE.saveVersion).toBe(3);
+    expect(loaded).toEqual(state);
+    expect(loaded?.flash).toBeNull();
+    expect(loaded?.lamp).toEqual({ count: 0, lit: [false, false, false] });
+  });
+
   it('壊れた JSON・バージョン違い・形の違うデータは null', () => {
     expect(deserialize('{not json')).toBeNull();
     expect(deserialize(null)).toBeNull();

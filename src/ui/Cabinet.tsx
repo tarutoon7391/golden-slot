@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import type { GameState, LineId } from '../shared/types.ts';
+import type { GameState } from '../shared/types.ts';
 import { MACHINE } from '../config/machine.ts';
 import { BONUS_SPECS } from '../config/roles.ts';
 import { isMuted, setMuted } from '../effects/audio.ts';
@@ -8,7 +8,7 @@ import { Controls } from './Controls.tsx';
 import { DataCounterCompact, DataCounterDetail } from './DataCounter.tsx';
 import { LogoPanel } from './LogoPanel.tsx';
 import { LOGO_ALL_OFF, type LogoLamps } from './logoLamps.ts';
-import { ReelWindow } from './ReelWindow.tsx';
+import { ReelWindow, type FlashShow } from './ReelWindow.tsx';
 import { ResultScreen } from './ResultScreen.tsx';
 import { useDeadlinePassed } from './useDeadline.ts';
 
@@ -36,11 +36,13 @@ interface CabinetProps {
   children?: ReactNode;
   /** デバッグ: 回転アニメーションを省く */
   instantReels?: boolean;
-  /** ロゴパネルの点灯（GO / LD / EN ごと）。ゲーム本体はまだ切り替えない（常に全消灯）。点灯条件は後のフェーズで決める */
+  /** デバッグ: 追加で点けるロゴランプ（ゲーム状態の点灯に OR する） */
   logoLamps?: LogoLamps;
+  /** デバッグ: フラッシュの試し撃ち（startAt がゲームの回転開始より新しければこちらを出す） */
+  debugFlash?: FlashShow | null;
 }
 
-export function Cabinet({ api, children, instantReels = false, logoLamps = LOGO_ALL_OFF }: CabinetProps) {
+export function Cabinet({ api, children, instantReels = false, logoLamps = LOGO_ALL_OFF, debugFlash = null }: CabinetProps) {
   const { state } = api;
   const waiting = useWaiting(state);
   const flash = useFlash(state);
@@ -62,8 +64,13 @@ export function Cabinet({ api, children, instantReels = false, logoLamps = LOGO_
 
   const showPayout = state.phase === 'payout' || state.phase === 'idle' || state.phase === 'bet';
   const payout = showPayout ? (state.payout?.totalPayout ?? 0) : 0;
-  const hitLines: LineId[] = state.phase === 'payout' ? (state.payout?.hits.map((h) => h.line).filter((l): l is LineId => l !== null) ?? []) : [];
   const effect = state.effect;
+  // ロゴランプ: ゲーム状態の点灯（左=GO, 中=LD, 右=EN）に、デバッグの追加点灯を OR する
+  const lamps: LogoLamps = state.lamp.lit.map((on, i) => (on || logoLamps[i] === 'on' ? 'on' : 'off'));
+  // リールフラッシュ: レバーONで決めたものを、第 3 停止（最後のストップボタン）の直後に出す（画面側が時間で消す）
+  const allStopped = state.stopAt.every((t) => t !== null);
+  const gameFlash: FlashShow | null = state.flash && allStopped ? { request: state.flash, startAt: Math.max(...state.stopAt.map((t) => t ?? 0)) } : null;
+  const reelFlash = debugFlash && debugFlash.startAt > state.spinStartAt ? debugFlash : gameFlash;
   const windowClass = [
     'window-area',
     flash !== 'none' ? `flash-${flash}` : '',
@@ -77,11 +84,11 @@ export function Cabinet({ api, children, instantReels = false, logoLamps = LOGO_
     <main className="cabinet">
       <Header muted={muted} onToggleMute={toggleMute} />
       <DataCounterCompact counters={state.counters} />
-      <LogoPanel lamps={logoLamps} />
+      <LogoPanel lamps={lamps} />
 
       <section className={windowClass}>
         <div className={`lamp${effect?.lamp === 'on' ? ' on' : ''}`} aria-label="告知ランプ" />
-        <ReelWindow state={state} highlightLines={hitLines} instant={instantReels} />
+        <ReelWindow state={state} instant={instantReels} flash={reelFlash} />
         <div className="info-row">
           <div className="info-item">
             <span className="info-label">CREDIT</span>

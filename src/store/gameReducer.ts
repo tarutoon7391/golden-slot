@@ -3,8 +3,11 @@ import type {
   PayoutResult,
   Counters,
   EffectPlan,
+  FlashRequest,
   GameState,
   KomaNo,
+  LampPlan,
+  LampState,
   LotteryResult,
   ReelIndex,
   Setting,
@@ -33,8 +36,20 @@ export type GameAction =
   | { type: 'NEW_GAME'; setting: Setting; seed: number; now: number }
   /** MAXBET */
   | { type: 'BET' }
-  /** レバーオン。抽選結果・持ち越し・演出計画は呼び出し側で決めて渡す */
-  | { type: 'LEVER'; lottery: LotteryResult; carriedBonus: BonusRole | null; effect: EffectPlan; now: number; skipWait?: boolean }
+  /**
+   * レバーオン。抽選結果・持ち越し・演出計画は呼び出し側で決めて渡す。
+   * flash（リールフラッシュ）と lampPlan（ロゴランプの点灯数）も呼び出し側で決める。省略時は発生なし・0 個
+   */
+  | {
+      type: 'LEVER';
+      lottery: LotteryResult;
+      carriedBonus: BonusRole | null;
+      effect: EffectPlan;
+      now: number;
+      skipWait?: boolean;
+      flash?: FlashRequest | null;
+      lampPlan?: LampPlan;
+    }
   /** ストップボタン。停止位置は decideStop の結果をそのまま渡す */
   | { type: 'STOP'; result: StopResult; now: number }
   /** 払い出しを反映して次ゲームへ */
@@ -50,6 +65,11 @@ export type GameAction =
 
 /** 1 コマが中段を通過する時間（ms）。80rpm・21 コマなら約 35.7ms */
 export const MS_PER_KOMA = 60000 / MACHINE.reelRpm / MACHINE.komaCount;
+
+/** ロゴランプの全消灯 */
+export function lampOff(count: LampState['count'] = 0): LampState {
+  return { count, lit: [false, false, false] };
+}
 
 export function emptyCounters(): Counters {
   return {
@@ -84,6 +104,8 @@ export function createInitialState(setting: Setting, seed: number, _now: number)
     stops: [null, null, null],
     payout: null,
     effect: null,
+    flash: null,
+    lamp: lampOff(),
     counters: emptyCounters(),
     lastLeverAt: -Infinity,
     spinStartAt: 0,
@@ -164,6 +186,9 @@ function lever(s: GameState, a: Extract<GameAction, { type: 'LEVER' }>): GameSta
     stops: [null, null, null],
     stopAt: [null, null, null],
     payout: null,
+    // リールフラッシュはここで決めて保持し、画面が第 3 停止の直後に出す。ロゴランプはレバーONで全消灯し、停止ごとに点く
+    flash: a.flash ?? null,
+    lamp: lampOff(a.lampPlan?.count ?? 0),
     lastLeverAt: spinStartAt,
     spinStartAt,
     spinFrom: from,
@@ -179,7 +204,11 @@ function stop(s: GameState, a: Extract<GameAction, { type: 'STOP' }>): GameState
   stops[reel] = a.result;
   const stopAt = [...s.stopAt] as [number | null, number | null, number | null];
   stopAt[reel] = a.now;
-  const next: GameState = { ...s, positions, stops, stopAt };
+  // ロゴランプ: 第 k 停止（k ≤ 点灯数）なら、いま止めたリールのランプを点ける（左=GO, 中=LD, 右=EN）
+  const k = positions.filter((p) => p !== null).length;
+  const lit = [...s.lamp.lit] as [boolean, boolean, boolean];
+  if (k <= s.lamp.count) lit[reel] = true;
+  const next: GameState = { ...s, positions, stops, stopAt, lamp: { ...s.lamp, lit } };
   if (positions.some((p) => p === null)) return next;
 
   // 全停止: 払い出し判定（表示は必ずこの結果に従う）
