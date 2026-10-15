@@ -49,6 +49,8 @@ golden-slot/
 │   │   ├─ sounds.ts       効果音・BGM の音程と長さ（Web Audio で合成）
 │   │   ├─ symbols.ts      図柄の表示名・画像パス・目押し用の発光（GLOW）
 │   │   ├─ flashes.ts      リールフラッシュ 6 種の動きと時間（フェーズ8b）
+│   │   ├─ flashTable.ts   フラッシュの発生率表（演出仕様 §2.2）
+│   │   ├─ lampTable.ts    ロゴランプ点灯数の確率表と B/none の整合（§2.3・§2.4）
 │   │   └─ lines.ts        有効ライン5本の定義
 │   ├─ shared/
 │   │   ├─ types.ts        型定義の集約
@@ -136,7 +138,7 @@ URL に `?debug=1` を付けると筐体の下にデバッグパネルが出る�
 | 7d | 引き込み最適性（仕様 v1.2 P1 補足・P8）: 非 strict のリーチ目形を経由する引き込みを許可、受け入れ検査を追加 | 完了 |
 | 8a | 筐体上部ロゴパネル（GO / LD / EN の 3 ランプ・器のみ） | 完了 |
 | 8b | リールフラッシュ 6 種とロゴランプの器（`config/flashes.ts`・停止ごとの点灯・デバッグパネル） | 完了 |
-| 8c | 演出の抽選接続（`docs/effects` の演出仕様 v1.0 §2） | 未着手 |
+| 8c | 演出の抽選接続（`config/flashTable.ts`・`config/lampTable.ts`・`effects/decideEffects.ts`、シミュレーターに演出の集計） | 完了 |
 
 ## Railway へのデプロイ
 

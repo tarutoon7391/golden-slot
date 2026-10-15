@@ -15,6 +15,8 @@ import { MACHINE } from '../config/machine.ts';
 import { ROLES, BONUS_SPECS, isBigBonus, patternsOf } from '../config/roles.ts';
 import { tableFor } from '../config/probability.ts';
 import { ROW_KEYS, applyCarry, drawLottery, rowForRoll } from '../lottery/lottery.ts';
+import { decideEffects } from '../effects/decideEffects.ts';
+import { newEffectStats, recordEffect, type EffectStats } from './effectStats.ts';
 
 export interface SimResult {
   setting: Setting;
@@ -34,6 +36,13 @@ export interface SimResult {
   /** ボーナスでの払い出し合計（平均枚数の算出用） */
   bonusPayout: Record<BonusRole, number>;
   bonusGames: Record<BonusRole, number>;
+  /** 演出の集計（通常時） */
+  effects: EffectStats;
+}
+
+/** 演出抽選用の乱数シード（抽選の乱数列を変えないため別の列にする） */
+export function effectSeedOf(seed: number): number {
+  return ((seed ^ 0x7f4a7c15) >>> 0) || 1;
 }
 
 /** 小役の理論払い出し枚数（モード別） */
@@ -49,6 +58,7 @@ export function theoreticalPayout(role: SmallRole, mode: GameMode): number {
 
 export function simulate(setting: Setting, games: number, seed = 1): SimResult {
   const rng = createRng(seed);
+  const effectRng = createRng(effectSeedOf(seed));
   const rowCounts = Object.fromEntries([...ROW_KEYS, 'NONE'].map((k) => [k, 0])) as SimResult['rowCounts'];
   const res: SimResult = {
     setting,
@@ -62,6 +72,7 @@ export function simulate(setting: Setting, games: number, seed = 1): SimResult {
     coinsOut: 0,
     bonusPayout: { BIG7: 0, BIGG: 0, REG: 0 },
     bonusGames: { BIG7: 0, BIGG: 0, REG: 0 },
+    effects: newEffectStats(),
   };
 
   let mode: GameMode = 'normal';
@@ -86,6 +97,8 @@ export function simulate(setting: Setting, games: number, seed = 1): SimResult {
       res.rowCounts[rowForRoll(table, drawn.roll!)]++;
       const { lottery, carriedBonus } = applyCarry(drawn, carried);
       carried = carriedBonus;
+      // 演出（結果は変えない）
+      recordEffect(res.effects, decideEffects({ small: lottery.small, bonus: carriedBonus, mode: 'normal' }, effectRng), carriedBonus !== null);
 
       if (lottery.small) {
         // 小役優先：必ず入賞

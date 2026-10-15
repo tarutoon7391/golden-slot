@@ -7,6 +7,7 @@ import { applyCarry, drawLottery, toActiveFlags } from '../lottery/lottery.ts';
 import { pickSetting } from '../lottery/setting.ts';
 import { decideStop, historyFromStops } from '../reel/control.ts';
 import { planLeverEffect, situationOf } from '../effects/plan.ts';
+import { decideEffects } from '../effects/decideEffects.ts';
 import { playBetSound, playBonusConfirm, playLeverSound, playPayout, playStopSound, startBgm, stopBgm, unlockAudio } from '../effects/audio.ts';
 import { canBet, canLever, canStop, createInitialState, gameReducer, normalizeRestored, payoutDelayMs, pushKomaAt } from './gameReducer.ts';
 import { loadGame, saveGame } from './storage.ts';
@@ -126,11 +127,13 @@ export function useGame(overridesRef?: RefObject<GameOverrides | undefined>): Ga
     // 2. 演出計画（結果を変えない）
     const effect = planLeverEffect(situationOf(lottery, s.carriedBonus), rng);
     playLeverSound(effect.leverSound);
-    // 3. リールフラッシュとロゴランプの点灯数。フェーズ8b は器だけなので、デバッグの指定がなければ出さない
-    //    （フェーズ8c で「通常」のときに effects/decideEffects を呼ぶ。演出は抽選結果を読むだけで結果を変えない）
+    // 3. リールフラッシュとロゴランプの点灯数（演出仕様 §2）。抽選結果を読むだけで結果を変えない。
+    //    デバッグの指定があればそれを使う（点灯数だけ自動のときは、指定したフラッシュに合わせて引く）
     const forcedFlash = overridesRef?.current?.nextFlash?.(s);
-    const flash: FlashRequest | null = forcedFlash === undefined ? null : forcedFlash;
-    const lampPlan: LampPlan = overridesRef?.current?.nextLampPlan?.(s) ?? { count: 0 };
+    const forcedLamp = overridesRef?.current?.nextLampPlan?.(s);
+    const decided = decideEffects({ small: lottery.small, bonus: carriedBonus, mode: s.mode }, rng, forcedFlash === undefined ? {} : { flash: forcedFlash });
+    const flash: FlashRequest | null = decided.flash;
+    const lampPlan: LampPlan = forcedLamp ?? decided.lampPlan;
     const skipWait = overridesRef?.current?.skipDelays?.() ?? false;
     dispatch({ type: 'LEVER', lottery, carriedBonus, effect, now: now(), skipWait, flash, lampPlan });
   }, [overridesRef]);

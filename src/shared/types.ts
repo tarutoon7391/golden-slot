@@ -276,6 +276,15 @@ export interface FlashRequest {
 /** ロゴランプ（GO / LD / EN）の点灯数 */
 export type LampCount = 0 | 1 | 2 | 3;
 
+/** 演出の抽選表の列: 成立役（リーチ目役 A/B は none 扱い） */
+export type EffectRoleKey = 'REPLAY' | 'BELL' | 'MELON' | 'CHERRY' | 'none';
+
+/**
+ * 演出の抽選表の行キー（演出仕様 v1.0 §2.1）
+ * N = ボーナス非成立、B = ボーナス成立後（当選G・持ち越しG）
+ */
+export type EffectStateKey = `${'N' | 'B'}/${EffectRoleKey}`;
+
 /** レバーON時に決めるロゴランプの点灯計画。第 k 停止（k ≤ count）で、そのとき止めたリールのランプが点く */
 export interface LampPlan {
   count: LampCount;

@@ -12,6 +12,7 @@ import { ROW_KEYS, ROW_LABELS, bonusRowsOf } from '../../src/lottery/lottery.ts'
 import { ALL_SETTINGS } from '../../src/lottery/setting.ts';
 import { BIG_KINDS, BONUS_ROLES, BONUS_SPECS, ROLES, isBigBonus } from '../../src/config/roles.ts';
 import { oneIn, payoutRate, simulate, type SimResult } from '../../src/sim/simulate.ts';
+import { effectSummaryRows } from '../../src/sim/effectStats.ts';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -48,6 +49,10 @@ function printDetail(r: SimResult): void {
   }
   console.log(`  投入 ${r.coinsIn.toLocaleString()} 枚 / 払出 ${r.coinsOut.toLocaleString()} 枚`);
   console.log(`  機械割 ${payoutRate(r).toFixed(2)} %`);
+  console.log('  演出                       出現        出た時点でボーナス');
+  for (const [label, freq, rate] of effectSummaryRows(r.effects)) {
+    console.log(`  ${label.padEnd(16, '　')} ${freq.padStart(10)}  ${rate}`);
+  }
 }
 
 console.log(`シミュレーション開始: 設定 ${settings.join(',')} / 各 ${games.toLocaleString()} G / seed ${seed}`);

@@ -16,6 +16,7 @@ import { buildPartialWindow } from '../reel/window.ts';
 import type { GameApi } from '../store/useGame.ts';
 import { oneIn, payoutRate, simulate, type SimResult } from '../sim/simulate.ts';
 import { controlPayoutRate, createControlSim, type ControlSim, type ControlSimResult, type PushMode } from '../sim/controlSim.ts';
+import { effectSummaryRows } from '../sim/effectStats.ts';
 import type { DebugControl, ForceKey } from './useDebugSettings.ts';
 
 /**
@@ -494,6 +495,11 @@ function simRows({ control: c, theory: t }: SimPair): [string, string, string][]
     ['BIG 平均枚数（7・G 合算）', avg(c.bonusPayout.BIG7 + c.bonusPayout.BIGG, bonusCount('BIG7', c)), avg(t.bonusPayout.BIG7 + t.bonusPayout.BIGG, bonusCount('BIG7', t))],
     ['REG 平均枚数', avg(c.bonusPayout.REG, c.regCount), avg(t.bonusPayout.REG, t.regCount)],
     ['投入 / 払出', `${c.coinsIn.toLocaleString()} / ${c.coinsOut.toLocaleString()}`, `${t.coinsIn.toLocaleString()} / ${t.coinsOut.toLocaleString()}`],
+    // 演出（出現頻度 / 出た時点でボーナスの割合）。制御込みは実際の滞在 G 数、理論値は「ハズレで即揃う」前提
+    ...effectSummaryRows(c.effects).map(([label, freq, rate], i): [string, string, string] => {
+      const [, tf, tr] = effectSummaryRows(t.effects)[i];
+      return [`演出: ${label}`, `${freq} / ${rate}`, `${tf} / ${tr}`];
+    }),
   ];
 }
 

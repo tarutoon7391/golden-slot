@@ -8,6 +8,9 @@ import { applyCarry, drawLottery, toActiveFlags } from '../lottery/lottery.ts';
 import { decideStop, targetRoleOf } from '../reel/control.ts';
 import { buildPartialWindow, buildWindow, withStop } from '../reel/window.ts';
 import { judgeWindow, matchAll, payoutOf } from '../payout/judge.ts';
+import { decideEffects } from '../effects/decideEffects.ts';
+import { effectSeedOf } from './simulate.ts';
+import { newEffectStats, recordEffect, type EffectStats } from './effectStats.ts';
 
 /**
  * 制御込みシミュレーション
@@ -57,6 +60,8 @@ export interface ControlSimResult {
   lost: Record<SmallRole, number>;
   /** 通常時のボーナス新規当選回数（持ち越し中に捨てた分は含まない） */
   bonusDrawn: Record<BonusRole, number>;
+  /** 演出の集計（通常時。実際の滞在 G 数での「出た時点でのボーナス率」） */
+  effects: EffectStats;
   /** ボーナス成立中に消化したゲーム数の合計（入賞ゲームを含む。平均は ÷ 入賞回数） */
   bonusWaitGames: number;
   bonusPayout: Record<BonusRole, number>;
@@ -112,6 +117,7 @@ export function createControlSim(opts: ControlSimOptions): ControlSim {
   const pushRng = createRng(pushSeedOf(opts.seed));
   // 制御の振り分け乱数（挟み打ちの平行／斜めスイカ）。抽選・押下位置の乱数列を変えないよう別の列にする
   const rollRng = createRng(pushSeedOf(pushSeedOf(opts.seed)));
+  const effectRng = createRng(effectSeedOf(opts.seed));
   const order = opts.order ?? [0, 1, 2];
   const fixed = opts.fixedPushes ?? [1, 1, 1];
   const result: ControlSimResult = {
@@ -128,6 +134,7 @@ export function createControlSim(opts: ControlSimOptions): ControlSim {
     won: zeroSmall(),
     lost: zeroSmall(),
     bonusDrawn: zeroBonus(),
+    effects: newEffectStats(),
     bonusWaitGames: 0,
     bonusPayout: zeroBonus(),
     bonusGames: zeroBonus(),
@@ -158,6 +165,8 @@ export function createControlSim(opts: ControlSimOptions): ControlSim {
     const flags = toActiveFlags(lottery, carriedBonus);
     const newBonus = !carried && lottery.bonus ? lottery.bonus : null;
     carried = carriedBonus;
+    // 演出（結果は変えない。集計だけ）
+    if (mode === 'normal') recordEffect(result.effects, decideEffects({ small: lottery.small, bonus: carriedBonus, mode }, effectRng), carriedBonus !== null);
     // 2. リール制御（1 リールずつ。押下位置は止まっているリールを見て決める）→ 3. 払い出し判定
     let stopped: StopPositions = [null, null, null];
     const history: StopRecord[] = [];
