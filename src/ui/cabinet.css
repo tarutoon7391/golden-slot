@@ -243,15 +243,15 @@
 }
 /* 目押し用の発光（赤7・単独G）。色は config/symbols.ts の GLOW から --glow で渡す */
 .cell.glow {
-  filter: drop-shadow(0 0 2px var(--glow)) drop-shadow(0 0 5px var(--glow));
-  animation: glow-pulse 1.1s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 8px var(--glow)) drop-shadow(0 0 14px var(--glow));
+  animation: glow-pulse 0.9s ease-in-out infinite alternate;
 }
 @keyframes glow-pulse {
   from {
-    filter: drop-shadow(0 0 2px var(--glow)) drop-shadow(0 0 4px var(--glow));
+    filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 10px var(--glow));
   }
   to {
-    filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 9px var(--glow));
+    filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 12px var(--glow)) drop-shadow(0 0 22px var(--glow)) brightness(1.08);
   }
 }
 @media (prefers-reduced-motion: reduce) {

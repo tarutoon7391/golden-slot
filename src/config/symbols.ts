@@ -34,8 +34,8 @@ export interface GlowInfo {
 }
 
 export const GLOW: Partial<Record<SymbolId, GlowInfo>> = {
-  seven: { color: '#ff3b3b' },
-  g: { color: '#ffb300', isolatedOnly: true },
+  seven: { color: '#ff1f1f' },
+  g: { color: '#ff9d00', isolatedOnly: true },
 };
 
 /** 全図柄IDの一覧（順序は表示用） */
